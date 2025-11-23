@@ -74,7 +74,62 @@ export default function JobsPage({ onNavigate }: JobsPageProps) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-4xl font-bold font-serif text-[#1e3a5f] mb-8">Open Positions</h1>
+      <h1 className="text-4xl font-bold font-serif text-brand-blue mb-8">Open Positions</h1>
+
+      {/* General Requirements and Application Method */}
+      <div className="bg-white rounded-xl shadow-md p-8 mb-8 border-l-4 border-brand-teal">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* General Requirements */}
+          <div>
+            <h2 className="text-2xl font-bold font-serif text-brand-blue mb-4">General Requirements</h2>
+            <ul className="space-y-3 text-gray-700">
+              <li className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-brand-teal mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>Required academic and professional qualifications must be met.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-brand-teal mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>NYSC discharge or exemption certificate is mandatory.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-brand-teal mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span>ICT proficiency is required.</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Method of Application */}
+          <div>
+            <h2 className="text-2xl font-bold font-serif text-brand-blue mb-4">Method of Application</h2>
+            <div className="space-y-4 text-gray-700">
+              <p className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-brand-teal mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                </svg>
+                <span>Applications must be submitted within <strong>six (6) weeks</strong> from the date of this advertisement.</span>
+              </p>
+              <p className="text-sm text-gray-600 italic">
+                <strong>Note:</strong> Only shortlisted candidates will receive an acknowledgment and be invited for an interview.
+              </p>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mt-4">
+                <p className="text-sm font-semibold text-brand-blue mb-2">All applications should be addressed to:</p>
+                <address className="text-sm text-gray-700 not-italic leading-relaxed">
+                  <strong>The Director of Administration</strong><br />
+                  Kashim Ibrahim University Teaching Hospital<br />
+                  P.M.B. 1065, Njimtilo, Kano Road,<br />
+                  Maiduguri, Borno State.
+                </address>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1">
