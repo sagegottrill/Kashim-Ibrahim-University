@@ -1,5 +1,3 @@
-import heroBg from '../assets/images/hero_bg.png';
-
 interface HomePageProps {
   onNavigate: (page: string) => void;
 }
@@ -9,16 +7,16 @@ export default function HomePage({ onNavigate }: HomePageProps) {
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
       <section className="relative h-[600px] bg-cover bg-center" style={{
-        backgroundImage: `linear-gradient(rgba(30, 58, 95, 0.85), rgba(30, 58, 95, 0.85)), url(${heroBg})`
+        backgroundImage: `url(/hero.png)`
       }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-center items-center text-center">
-          <div className="max-w-4xl animate-fade-in-up space-y-8">
-            <h1 className="text-4xl md:text-6xl font-bold font-serif text-white leading-tight">
+          <div className="max-w-4xl animate-fade-in-up space-y-8 bg-black/50 backdrop-blur-sm p-12 rounded-2xl">
+            <h1 className="text-4xl md:text-6xl font-bold font-serif text-white leading-tight drop-shadow-lg">
               Join the Team at <br />
               <span className="text-brand-teal">Kashim Ibrahim University</span> <br />
               Teaching Hospital
             </h1>
-            <p className="text-xl md:text-2xl text-gray-200 font-light max-w-2xl mx-auto">
+            <p className="text-xl md:text-2xl text-white font-light max-w-2xl mx-auto drop-shadow-md">
               Excellence in Healthcare, Education, and Research.
             </p>
             <div className="pt-4">
@@ -58,7 +56,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
               {
                 title: 'Community Impact',
                 description: 'Serve the community and contribute to improving healthcare in the region.',
-                image: '/site/3.jpg'
+                image: '/site/99.jpg'
               }
             ].map((item, index) => (
               <div key={index} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group">
