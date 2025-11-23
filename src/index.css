@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,7 +6,9 @@
 
 @layer base {
   :root {
-    --background: 210 40% 98%;
+    --background: 0 0% 100%;
+    --foreground: 214 52% 25%;
+    /* Brand Blue as default text color? Or keep dark gray? Let's keep dark gray for body, but use brand blue for headings */
     --foreground: 222.2 84% 4.9%;
 
     --card: 0 0% 100%;
@@ -15,11 +17,13 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 221 83% 53%;
+    /* Brand Teal as Primary (Buttons, Active states) */
+    --primary: 158 36% 45%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Brand Blue as Secondary */
+    --secondary: 214 52% 25%;
+    --secondary-foreground: 210 40% 98%;
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
@@ -32,7 +36,8 @@
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 221 83% 53%;
+    --ring: 158 36% 45%;
+    /* Ring matches Primary */
 
     --radius: 0.5rem;
 
@@ -44,6 +49,10 @@
     --sidebar-accent-foreground: 215 25% 27%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 221 83% 53%;
+
+    /* Custom Brand Variables */
+    --brand-blue: 214 52% 25%;
+    --brand-teal: 158 36% 45%;
   }
 
   .dark {

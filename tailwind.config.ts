@@ -63,11 +63,16 @@ export default {
           'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))'
-        }
+        },
+        brand: {
+          blue: 'hsl(var(--brand-blue))',
+          teal: 'hsl(var(--brand-teal))',
+        },
       },
       fontFamily: {
         mono: ['JetBrains Mono', 'monospace'],
         sans: ['Inter', 'sans-serif'],
+        serif: ['Playfair Display', 'serif'],
       },
       borderRadius: {
         lg: 'calc(var(--radius) + 2px)',

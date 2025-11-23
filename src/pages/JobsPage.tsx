@@ -1,42 +1,66 @@
-import { useState } from 'react';
-import { jobsData, Job } from '../data/jobsData';
+import { useState, useEffect } from 'react';
 import JobCard from '../components/JobCard';
-import FilterPanel from '../components/FilterPanel';
 import RequirementsModal from '../components/RequirementsModal';
+import { supabase } from '../lib/supabase';
+import { Job } from '../types';
+import FilterPanel from '../components/FilterPanel';
 
 interface JobsPageProps {
-  onNavigate: (page: string, params?: any) => void;
+  onNavigate: (page: string) => void;
 }
 
 export default function JobsPage({ onNavigate }: JobsPageProps) {
-  const [selectedDepartment, setSelectedDepartment] = useState('All Departments');
-  const [selectedType, setSelectedType] = useState('All Types');
-  const [keyword, setKeyword] = useState('');
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('All Types');
+  const [filterDept, setFilterDept] = useState('All Departments');
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const filteredJobs = jobsData.filter(job => {
-    const matchesDept = selectedDepartment === 'All Departments' || job.department === selectedDepartment;
-    const matchesType = selectedType === 'All Types' || job.type === selectedType;
-    const matchesKeyword = keyword === '' ||
-      job.title.toLowerCase().includes(keyword.toLowerCase()) ||
-      job.department.toLowerCase().includes(keyword.toLowerCase());
+  useEffect(() => {
+    fetchJobs();
+  }, []);
 
-    return matchesDept && matchesType && matchesKeyword;
-  });
+  const fetchJobs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('is_active', true);
 
-  const handleReset = () => {
-    setSelectedDepartment('All Departments');
-    setSelectedType('All Types');
-    setKeyword('');
+      if (error) throw error;
+      setJobs(data || []);
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleApplyClick = (jobId: string) => {
-    const job = jobsData.find(j => j.id === jobId);
-    if (job) {
-      setSelectedJob(job);
-      setIsModalOpen(true);
-    }
+  const filteredJobs = jobs.filter(job => {
+    const matchesSearch = searchTerm === '' ||
+      job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      job.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      job.department.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = filterType === 'All Types' || job.type === filterType;
+    const matchesDept = filterDept === 'All Departments' || job.department === filterDept;
+    return matchesSearch && matchesType && matchesDept;
+  });
+
+  const departments = ['All Departments', ...Array.from(new Set(jobs.map(j => j.department)))];
+  const types = ['All Types', ...Array.from(new Set(jobs.map(j => j.type)))];
+
+
+  const handleReset = () => {
+    setFilterDept('All Departments');
+    setFilterType('All Types');
+    setSearchTerm('');
+  };
+
+  const handleApplyClick = (job: Job) => {
+    setSelectedJob(job);
+    setIsModalOpen(true);
   };
 
   const handleProceedToApply = () => {
@@ -55,17 +79,17 @@ export default function JobsPage({ onNavigate }: JobsPageProps) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-4xl font-bold text-[#1e3a5f] mb-8">Open Positions</h1>
+      <h1 className="text-4xl font-bold font-serif text-[#1e3a5f] mb-8">Open Positions</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1">
           <FilterPanel
-            selectedDepartment={selectedDepartment}
-            selectedType={selectedType}
-            keyword={keyword}
-            onDepartmentChange={setSelectedDepartment}
-            onTypeChange={setSelectedType}
-            onKeywordChange={setKeyword}
+            selectedDepartment={filterDept}
+            selectedType={filterType}
+            keyword={searchTerm}
+            onDepartmentChange={setFilterDept}
+            onTypeChange={setFilterType}
+            onKeywordChange={setSearchTerm}
             onReset={handleReset}
           />
         </div>

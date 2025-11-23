@@ -13,7 +13,6 @@ export default function Header({ currentPage, onNavigate }: HeaderProps) {
     { name: 'Jobs', page: 'jobs' },
     { name: 'Apply', page: 'apply' },
     { name: 'Dashboard', page: 'dashboard' },
-    { name: 'Admin', page: 'admin' },
     { name: 'Contact', page: 'contact' }
   ];
 
@@ -22,30 +21,44 @@ export default function Header({ currentPage, onNavigate }: HeaderProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-4">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => onNavigate('home')}>
-            <div className="w-10 h-10 bg-[#1e3a5f] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">K</span>
-            </div>
+            <img src="/logo.png" alt="KIUTH Logo" className="w-10 h-10 object-contain" />
             <div>
-              <h1 className="text-lg font-bold text-[#1e3a5f]">KIUTH</h1>
+              <h1 className="text-lg font-bold text-brand-blue">KIUTH</h1>
               <p className="text-xs text-gray-500">Recruitment Portal</p>
             </div>
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-6">
-            {navItems.map(item => (
-              <button
-                key={item.page}
-                onClick={() => onNavigate(item.page)}
-                className={`font-medium transition-colors duration-300 ${currentPage === item.page
-                    ? 'text-[#4a9d7e]'
-                    : 'text-gray-600 hover:text-[#4a9d7e]'
-                  }`}
-              >
-                {item.name}
-              </button>
-            ))}
-          </nav>
+          <div className="hidden md:flex items-center gap-8">
+            <nav className="flex items-center gap-6">
+              {navItems.map(item => (
+                <button
+                  key={item.page}
+                  onClick={() => onNavigate(item.page)}
+                  className={`font-medium transition-colors duration-300 ${currentPage === item.page
+                    ? 'text-brand-teal'
+                    : 'text-gray-600 hover:text-brand-teal'
+                    }`}
+                >
+                  {item.name}
+                </button>
+              ))}
+            </nav>
+
+            {/* Admin Link */}
+            <button
+              onClick={() => onNavigate('admin')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 ${currentPage === 'admin'
+                ? 'bg-brand-blue text-white'
+                : 'bg-gray-100 text-brand-blue hover:bg-brand-blue hover:text-white'
+                }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <span className="text-sm font-medium">Admin</span>
+            </button>
+          </div>
 
           {/* Mobile Menu Button */}
           <button
@@ -69,13 +82,30 @@ export default function Header({ currentPage, onNavigate }: HeaderProps) {
                   setMobileMenuOpen(false);
                 }}
                 className={`block w-full text-left px-4 py-2 rounded-lg transition-colors duration-300 ${currentPage === item.page
-                    ? 'bg-[#4a9d7e] text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
+                  ? 'bg-brand-teal text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
                   }`}
               >
                 {item.name}
               </button>
             ))}
+            <button
+              onClick={() => {
+                onNavigate('admin');
+                setMobileMenuOpen(false);
+              }}
+              className={`block w-full text-left px-4 py-2 rounded-lg transition-colors duration-300 ${currentPage === 'admin'
+                ? 'bg-brand-blue text-white'
+                : 'text-brand-blue font-medium hover:bg-gray-100'
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                Admin Portal
+              </div>
+            </button>
           </nav>
         )}
       </div>

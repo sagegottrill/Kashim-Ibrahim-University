@@ -1,104 +1,123 @@
 import { useState } from 'react';
-import { applicantsData } from '../data/applicantsData';
+import { supabase } from '../lib/supabase';
 import StatusBadge from '../components/StatusBadge';
 
+interface Application {
+  id: string;
+  created_at: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  position: string;
+  department: string;
+  status: string;
+  reference_number: string;
+}
+
 export default function DashboardPage() {
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [refNumber, setRefNumber] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [application, setApplication] = useState<Application | null>(null);
+  const [error, setError] = useState('');
 
-  // For demo, show first 3 applicants as "my applications"
-  const myApplications = applicantsData.slice(0, 3);
+  const handleCheckStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setApplication(null);
 
-  const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id);
+    try {
+      const { data, error } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('reference_number', refNumber)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          setError('No application found with this Reference Number.');
+        } else {
+          throw error;
+        }
+      } else {
+        setApplication(data);
+      }
+    } catch (err) {
+      console.error('Error fetching application:', err);
+      setError('An error occurred while checking your status. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-12">
-      <h1 className="text-4xl font-bold text-[#1e3a5f] mb-8">My Applications</h1>
+    <div className="max-w-4xl mx-auto px-4 py-12">
+      <h1 className="text-4xl font-bold text-[#1e3a5f] mb-8 text-center">Check Application Status</h1>
 
-      <div className="space-y-4">
-        {myApplications.map(app => (
-          <div key={app.id} className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-xl font-semibold text-[#1e3a5f] mb-2">{app.position}</h3>
-                  <p className="text-gray-600 text-sm">{app.department}</p>
-                </div>
-                <StatusBadge status={app.status} />
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                  <p className="text-xs text-gray-500">Reference Number</p>
-                  <p className="font-medium text-sm">{app.refNumber}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Applied Date</p>
-                  <p className="font-medium text-sm">{new Date(app.appliedDate).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Contact</p>
-                  <p className="font-medium text-sm">{app.email}</p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => toggleExpand(app.id)}
-                className="text-[#4a9d7e] hover:text-[#3d8568] text-sm font-medium flex items-center gap-2"
-              >
-                {expandedId === app.id ? 'Hide Details' : 'View Details'}
-                <svg
-                  className={`w-4 h-4 transition-transform ${expandedId === app.id ? 'rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-            </div>
-
-            {expandedId === app.id && (
-              <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-                <h4 className="font-semibold text-[#1e3a5f] mb-3">Application Details</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-600">Applicant Name</p>
-                    <p className="font-medium">{app.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Phone</p>
-                    <p className="font-medium">{app.phone}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Current Status</p>
-                    <p className="font-medium">{app.status}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Department</p>
-                    <p className="font-medium">{app.department}</p>
-                  </div>
-                </div>
-                
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    {app.status === 'Interview' && 'Congratulations! You have been shortlisted for an interview. You will be contacted soon.'}
-                    {app.status === 'Shortlisted' && 'Your application has been shortlisted for review. We will contact you soon.'}
-                    {app.status === 'Submitted' && 'Your application is under review. We will notify you of any updates.'}
-                    {app.status === 'Draft' && 'Your application is saved as draft. Please complete and submit it.'}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
+      <div className="bg-white rounded-lg shadow-md p-8 mb-8">
+        <form onSubmit={handleCheckStatus} className="flex flex-col md:flex-row gap-4">
+          <input
+            type="text"
+            placeholder="Enter your Reference Number (e.g., KIUTH-2025-...)"
+            value={refNumber}
+            onChange={(e) => setRefNumber(e.target.value)}
+            className="flex-grow px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e] focus:outline-none"
+            required
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-[#1e3a5f] text-white px-8 py-3 rounded-lg hover:bg-[#162c46] transition-colors disabled:opacity-50 font-medium"
+          >
+            {loading ? 'Checking...' : 'Check Status'}
+          </button>
+        </form>
+        {error && <p className="text-red-600 mt-4 text-center">{error}</p>}
       </div>
 
-      {myApplications.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-lg shadow-md">
-          <p className="text-gray-500 text-lg mb-4">You haven't submitted any applications yet</p>
-          <button className="text-[#4a9d7e] hover:underline">Browse Open Positions</button>
+      {application && (
+        <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden animate-fade-in">
+          <div className="p-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+              <div>
+                <h3 className="text-2xl font-bold text-[#1e3a5f] mb-1">{application.position}</h3>
+                <p className="text-gray-600">{application.department}</p>
+              </div>
+              <StatusBadge status={application.status || 'Submitted'} />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Applicant Name</p>
+                <p className="font-medium text-lg">{application.full_name}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Reference Number</p>
+                <p className="font-medium text-lg font-mono">{application.reference_number}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Date Applied</p>
+                <p className="font-medium text-lg">{new Date(application.created_at).toLocaleDateString()}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Contact Email</p>
+                <p className="font-medium text-lg">{application.email}</p>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+              <h4 className="font-semibold text-blue-900 mb-2">Application Status Update</h4>
+              <p className="text-blue-800">
+                {!application.status || application.status === 'Submitted'
+                  ? 'Your application has been successfully submitted and is currently under review by our recruitment team.'
+                  : application.status === 'Shortlisted'
+                    ? 'Congratulations! Your application has been shortlisted. We will contact you shortly regarding the next steps.'
+                    : application.status === 'Interview'
+                      ? 'You have been selected for an interview. Please check your email for details.'
+                      : 'Your application status has been updated.'}
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>

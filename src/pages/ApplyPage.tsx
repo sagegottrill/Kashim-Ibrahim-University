@@ -1,13 +1,30 @@
 import { useState, useEffect } from 'react';
 import ProgressStepper from '../components/ProgressStepper';
 import FileUpload from '../components/FileUpload';
-import { jobsData } from '../data/jobsData';
+import { supabase } from '../lib/supabase';
+
+interface Job {
+  title: string;
+  department: string;
+  requirements: string[];
+  required_documents: string[];
+  license_label: string;
+}
 
 export default function ApplyPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
-  const [refNumber] = useState(`KIUTH-2024-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`);
+  const [refNumber] = useState(`KIUTH - 2025 - ${Math.floor(1000 + Math.random() * 9000)} `);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [jobsList, setJobsList] = useState<Job[]>([]);
 
+  useEffect(() => {
+    const fetchJobs = async () => {
+      const { data } = await supabase.from('jobs').select('*').eq('is_active', true);
+      if (data) setJobsList(data);
+    };
+    fetchJobs();
+  }, []);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -15,37 +32,43 @@ export default function ApplyPage() {
     state: '',
     lga: '',
     position: '',
-    specialty: '',
     department: '',
+    specialty: '',
     qualification: '',
     yearGrad: '',
     license: '',
     institution: '',
     cv: null as File | null,
-    certificates: null as File | null,
-    licenseDoc: null as File | null,
     photo: null as File | null,
-    nysc: null as File | null,
     ndprConsent: false
   });
 
   useEffect(() => {
-    const selectedJobTitle = localStorage.getItem('selectedJobTitle');
-    if (selectedJobTitle) {
-      const job = jobsData.find(j => j.title === selectedJobTitle);
-      if (job) {
-        setFormData(prev => ({
-          ...prev,
-          position: job.title,
-          department: job.department
-        }));
-      }
-      // Clear it so it doesn't persist if they navigate away and back
-      localStorage.removeItem('selectedJobTitle');
+    const storedJobTitle = localStorage.getItem('selectedJobTitle');
+    const storedJobDetails = localStorage.getItem('selectedJobDetails');
+
+    if (storedJobDetails) {
+      const job = JSON.parse(storedJobDetails);
+      setSelectedJob(job);
+      setFormData(prev => ({
+        ...prev,
+        position: job.title,
+        department: job.department
+      }));
+    } else if (storedJobTitle) {
+      // Fallback if details aren't there but title is (legacy or direct link)
+      // In a real app, we'd fetch the job by title from Supabase here
+      setFormData(prev => ({ ...prev, position: storedJobTitle }));
     }
+
+    // Clear storage so it doesn't persist if they navigate away and back
+    // localStorage.removeItem('selectedJobTitle');
+    // localStorage.removeItem('selectedJobDetails');
   }, []);
 
   const steps = ['Personal', 'Position', 'Qualifications', 'Uploads', 'Review'];
+
+  const [dynamicDocs, setDynamicDocs] = useState<Record<string, File | null>>({});
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
@@ -82,14 +105,14 @@ export default function ApplyPage() {
           alert('Please upload your CV, Passport Photo and accept NDPR consent');
           return false;
         }
+
         // Validate dynamic required documents
-        const job = jobsData.find(j => j.title === formData.position);
-        if (job) {
-          // In a real app, we would check if each specific document in job.requiredDocuments has been uploaded.
-          // Since we are using a simplified state, we will assume the user has uploaded them if they are interacting with the form.
-          // However, to enforce "must input", we should ideally track these uploads in state.
-          // For this demo, we'll rely on the visual asterisk and the main required fields.
-          // To strictly enforce, we'd need to map uploads to state keys dynamically.
+        if (selectedJob) {
+          const missingDocs = selectedJob.required_documents.filter(doc => !dynamicDocs[doc]);
+          if (missingDocs.length > 0) {
+            alert(`Please upload the following required documents: ${missingDocs.join(', ')} `);
+            return false;
+          }
         }
         return true;
       default:
@@ -97,8 +120,76 @@ export default function ApplyPage() {
     }
   };
 
-  const handleSubmit = () => {
-    setSubmitted(true);
+  const handleSubmit = async () => {
+    try {
+      setSubmitted(false); // Reset submitted state if retrying
+      // Show loading state here if you had one, e.g., setIsSubmitting(true)
+
+      // 1. Upload Files
+      const uploadFile = async (file: File, folder: string, name: string) => {
+        const fileExt = file.name.split('.').pop();
+        // Sanitize file name to avoid issues
+        const sanitizedName = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const fileName = `${folder}/${sanitizedName}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+        const { data, error } = await supabase.storage
+          .from('job_documents')
+          .upload(fileName, file);
+
+        if (error) throw error;
+        return data.path;
+      };
+
+      const folderName = `${refNumber}`;
+      let cvPath = null;
+      let photoPath = null;
+      const otherDocsData: { name: string; path: string }[] = [];
+
+      if (formData.cv) cvPath = await uploadFile(formData.cv, folderName, 'cv');
+      if (formData.photo) photoPath = await uploadFile(formData.photo, folderName, 'passport_photo');
+
+      // Upload dynamic docs
+      if (selectedJob) {
+        for (const docName of selectedJob.required_documents) {
+          const file = dynamicDocs[docName];
+          if (file) {
+            const path = await uploadFile(file, folderName, docName);
+            otherDocsData.push({ name: docName, path });
+          }
+        }
+      }
+
+      // 2. Insert Data
+      const { error: insertError } = await supabase
+        .from('applications')
+        .insert([
+          {
+            full_name: formData.fullName,
+            email: formData.email,
+            phone: formData.phone,
+            state_of_origin: formData.state,
+            lga: formData.lga,
+            position: formData.position,
+            department: formData.department,
+            specialty: formData.specialty,
+            qualification: formData.qualification,
+            year_of_graduation: formData.yearGrad,
+            license_number: formData.license,
+            institution: formData.institution,
+            reference_number: refNumber,
+            cv_url: cvPath,
+            photo_url: photoPath,
+            other_documents: otherDocsData
+          }
+        ]);
+
+      if (insertError) throw insertError;
+
+      setSubmitted(true);
+    } catch (error) {
+      console.error('Error submitting application:', error);
+      alert('There was an error submitting your application. Please try again.');
+    }
   };
 
   if (submitted) {
@@ -194,28 +285,31 @@ export default function ApplyPage() {
               <select
                 value={formData.position}
                 onChange={(e) => {
-                  const job = jobsData.find(j => j.title === e.target.value);
-                  setFormData({
-                    ...formData,
-                    position: e.target.value,
-                    department: job ? job.department : ''
-                  });
+                  const job = jobsList.find(j => j.title === e.target.value);
+                  if (job) {
+                    setSelectedJob(job);
+                    setFormData({
+                      ...formData,
+                      position: e.target.value,
+                      department: job.department
+                    });
+                  }
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e]"
               >
                 <option value="">Select a position</option>
-                {jobsData.map(job => (
-                  <option key={job.id} value={job.title}>{job.title}</option>
+                {jobsList.map(job => (
+                  <option key={job.title} value={job.title}>{job.title}</option>
                 ))}
               </select>
             </div>
 
             {/* Dynamic Requirements Display */}
-            {formData.position && (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                <h4 className="font-semibold text-[#1e3a5f] mb-2">Requirements for {formData.position}:</h4>
-                <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-                  {jobsData.find(j => j.title === formData.position)?.requirements.map((req, idx) => (
+            {selectedJob && (
+              <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                <h3 className="font-semibold text-[#1e3a5f] mb-2">Requirements for {selectedJob.title}</h3>
+                <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
+                  {selectedJob.requirements.map((req, idx) => (
                     <li key={idx}>{req}</li>
                   ))}
                 </ul>
@@ -268,15 +362,14 @@ export default function ApplyPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {formData.position
-                    ? jobsData.find(j => j.title === formData.position)?.licenseLabel || 'Professional License Number'
-                    : 'Professional License Number'}
+                  {selectedJob?.license_label || 'Professional License Number'}
                 </label>
                 <input
                   type="text"
                   value={formData.license}
                   onChange={(e) => setFormData({ ...formData, license: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e]"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e] focus:border-transparent"
+                  placeholder={selectedJob?.license_label ? `Enter your ${selectedJob.license_label}` : "Enter license number if applicable"}
                 />
               </div>
               <div>
@@ -305,22 +398,13 @@ export default function ApplyPage() {
             />
 
             {/* Dynamic Documents based on Job Data */}
-            {formData.position && jobsData.find(j => j.title === formData.position)?.requiredDocuments.map((docName, idx) => (
+            {selectedJob && selectedJob.required_documents.map((docName, idx) => (
               <FileUpload
                 key={idx}
                 label={`${docName} *`}
                 accept=".pdf,.jpg,.png"
                 onChange={(file) => {
-                  // This is a simplified way to handle dynamic files. 
-                  // In a real app, you'd store these in a map or array in formData.
-                  // For this demo, we assume the user uploads them and we just track that they did.
-                  // We'll use a generic 'documents' array or similar in a real implementation.
-                  // For now, let's just log it or assume it's handled.
-                  // To make it work with the current state structure, we might need to expand formData.
-                  // However, since we can't easily change the state structure dynamically without a refactor,
-                  // We will assume the FileUpload component handles the visual feedback, 
-                  // and we'll add a validation check in the Next/Submit handler.
-                  console.log(`Uploaded ${docName}:`, file);
+                  setDynamicDocs(prev => ({ ...prev, [docName]: file }));
                 }}
               />
             ))}

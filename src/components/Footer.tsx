@@ -4,7 +4,10 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <h3 className="text-lg font-semibold mb-4">KIUTH</h3>
+            <div className="flex items-center gap-3 mb-4">
+              <img src="/logo.png" alt="KIUTH Logo" className="w-8 h-8 object-contain" />
+              <h3 className="text-lg font-semibold">KIUTH</h3>
+            </div>
             <p className="text-gray-300 text-sm">
               Kashim Ibrahim University Teaching Hospital - Building Borno's Future Healthcare Workforce
             </p>

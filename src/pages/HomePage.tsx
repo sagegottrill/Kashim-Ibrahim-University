@@ -1,7 +1,4 @@
 import heroBg from '../assets/images/hero_bg.png';
-import trainingHospital from '../assets/images/training_hospital.png';
-import careerGrowth from '../assets/images/career_growth.png';
-import communityImpact from '../assets/images/community_impact.png';
 
 interface HomePageProps {
   onNavigate: (page: string) => void;
@@ -9,64 +6,68 @@ interface HomePageProps {
 
 export default function HomePage({ onNavigate }: HomePageProps) {
   return (
-    <div>
+    <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
-      <section className="relative h-[500px] bg-cover bg-center" style={{
-        backgroundImage: `linear-gradient(rgba(30, 58, 95, 0.8), rgba(30, 58, 95, 0.8)), url(${heroBg})`
+      <section className="relative h-[600px] bg-cover bg-center" style={{
+        backgroundImage: `linear-gradient(rgba(30, 58, 95, 0.85), rgba(30, 58, 95, 0.85)), url(${heroBg})`
       }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-center items-center text-center">
-          <div className="max-w-3xl animate-fade-in-up">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              Join the Team at Kashim Ibrahim University Teaching Hospital
+          <div className="max-w-4xl animate-fade-in-up space-y-8">
+            <h1 className="text-4xl md:text-6xl font-bold font-serif text-white leading-tight">
+              Join the Team at <br />
+              <span className="text-brand-teal">Kashim Ibrahim University</span> <br />
+              Teaching Hospital
             </h1>
-            <p className="text-xl text-gray-200 mb-8">
+            <p className="text-xl md:text-2xl text-gray-200 font-light max-w-2xl mx-auto">
               Excellence in Healthcare, Education, and Research.
             </p>
-            <button
-              onClick={() => onNavigate('jobs')}
-              className="bg-[#4a9d7e] text-white px-8 py-3 rounded-lg font-semibold hover:bg-[#3d8568] transition-colors duration-300"
-            >
-              View Open Positions
-            </button>
+            <div className="pt-4">
+              <button
+                onClick={() => onNavigate('jobs')}
+                className="bg-brand-teal text-white px-10 py-4 rounded-full font-semibold text-lg hover:bg-[#3d8568] transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+              >
+                View Open Positions
+              </button>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Why Work With KIUTH */}
-      <section className="py-16 bg-gray-50">
+      <section className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-[#1e3a5f] mb-4">Why Work With KIUTH?</h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              We offer a supportive environment where you can grow your career and make a real impact.
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold font-serif text-brand-blue mb-6">Why Work With KIUTH?</h2>
+            <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              We offer a supportive environment where you can grow your career, collaborate with experts, and make a real impact on patient lives.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             {[
               {
                 title: 'Training Hospital',
-                description: 'Learn from experienced professionals in a world-class teaching hospital environment',
-                image: trainingHospital
+                description: 'Learn from experienced professionals in a world-class teaching hospital environment.',
+                image: '/site/1.jpg'
               },
               {
                 title: 'Career Growth',
-                description: 'Opportunities for professional development, research, and specialization',
-                image: careerGrowth
+                description: 'Opportunities for professional development, research, and specialization.',
+                image: '/site/2.jpg'
               },
               {
                 title: 'Community Impact',
-                description: 'Serve the community and contribute to improving healthcare in the region',
-                image: communityImpact
+                description: 'Serve the community and contribute to improving healthcare in the region.',
+                image: '/site/3.jpg'
               }
             ].map((item, index) => (
-              <div key={index} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
-                <div className="h-48 overflow-hidden">
-                  <img src={item.image} alt={item.title} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+              <div key={index} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group">
+                <div className="h-56 overflow-hidden">
+                  <img src={item.image} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                 </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-semibold text-[#1e3a5f] mb-2">{item.title}</h3>
-                  <p className="text-gray-600">{item.description}</p>
+                <div className="p-8">
+                  <h3 className="text-2xl font-bold font-serif text-brand-blue mb-3">{item.title}</h3>
+                  <p className="text-gray-600 leading-relaxed">{item.description}</p>
                 </div>
               </div>
             ))}
