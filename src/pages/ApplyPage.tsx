@@ -4,6 +4,7 @@ import FileUpload from '../components/FileUpload';
 import { supabase } from '../lib/supabase';
 
 interface Job {
+  id?: string;
   title: string;
   department: string;
   requirements: string[];
@@ -18,13 +19,29 @@ export default function ApplyPage() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [jobsList, setJobsList] = useState<Job[]>([]);
 
+
   useEffect(() => {
     const fetchJobs = async () => {
       const { data } = await supabase.from('jobs').select('*').eq('is_active', true);
-      if (data) setJobsList(data);
+      if (data) {
+        setJobsList(data);
+
+        // After jobs are fetched, check if there's a stored job selection
+        const storedJobDetails = localStorage.getItem('selectedJobDetails');
+        if (storedJobDetails) {
+          const job = JSON.parse(storedJobDetails);
+          setSelectedJob(job);
+          setFormData(prev => ({
+            ...prev,
+            position: job.title,
+            department: job.department
+          }));
+        }
+      }
     };
     fetchJobs();
   }, []);
+
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -42,29 +59,6 @@ export default function ApplyPage() {
     photo: null as File | null,
     ndprConsent: false
   });
-
-  useEffect(() => {
-    const storedJobTitle = localStorage.getItem('selectedJobTitle');
-    const storedJobDetails = localStorage.getItem('selectedJobDetails');
-
-    if (storedJobDetails) {
-      const job = JSON.parse(storedJobDetails);
-      setSelectedJob(job);
-      setFormData(prev => ({
-        ...prev,
-        position: job.title,
-        department: job.department
-      }));
-    } else if (storedJobTitle) {
-      // Fallback if details aren't there but title is (legacy or direct link)
-      // In a real app, we'd fetch the job by title from Supabase here
-      setFormData(prev => ({ ...prev, position: storedJobTitle }));
-    }
-
-    // Clear storage so it doesn't persist if they navigate away and back
-    // localStorage.removeItem('selectedJobTitle');
-    // localStorage.removeItem('selectedJobDetails');
-  }, []);
 
   const steps = ['Personal', 'Position', 'Qualifications', 'Uploads', 'Review'];
 
@@ -299,7 +293,7 @@ export default function ApplyPage() {
               >
                 <option value="">Select a position</option>
                 {jobsList.map(job => (
-                  <option key={job.title} value={job.title}>{job.title}</option>
+                  <option key={job.id || job.title} value={job.title}>{job.title}</option>
                 ))}
               </select>
             </div>

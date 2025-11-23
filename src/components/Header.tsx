@@ -11,7 +11,6 @@ export default function Header({ currentPage, onNavigate }: HeaderProps) {
   const navItems = [
     { name: 'Home', page: 'home' },
     { name: 'Jobs', page: 'jobs' },
-    { name: 'Apply', page: 'apply' },
     { name: 'Dashboard', page: 'dashboard' },
     { name: 'Contact', page: 'contact' }
   ];
@@ -20,11 +19,11 @@ export default function Header({ currentPage, onNavigate }: HeaderProps) {
     <header className="bg-white shadow-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-4">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => onNavigate('home')}>
-            <img src="/logo.png" alt="KIUTH Logo" className="w-10 h-10 object-contain" />
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => onNavigate('home')}>
+            <img src="/logo.png" alt="KIUTH Logo" className="w-16 h-16 object-contain" />
             <div>
-              <h1 className="text-lg font-bold text-brand-blue">KIUTH</h1>
-              <p className="text-xs text-gray-500">Recruitment Portal</p>
+              <h1 className="text-xl font-bold text-brand-blue">KIUTH</h1>
+              <p className="text-sm text-gray-500">Recruitment Portal</p>
             </div>
           </div>
 

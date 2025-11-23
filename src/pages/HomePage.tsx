@@ -9,16 +9,20 @@ export default function HomePage({ onNavigate }: HomePageProps) {
       <section className="relative h-[600px] bg-cover bg-center" style={{
         backgroundImage: `url(/hero.png)`
       }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-center items-center text-center">
-          <div className="max-w-4xl animate-fade-in-up space-y-8 bg-black/50 backdrop-blur-sm p-12 rounded-2xl">
-            <h1 className="text-4xl md:text-6xl font-bold font-serif text-white leading-tight drop-shadow-lg">
-              Join the Team at <br />
-              <span className="text-brand-teal">Kashim Ibrahim University</span> <br />
-              Teaching Hospital
-            </h1>
-            <p className="text-xl md:text-2xl text-white font-light max-w-2xl mx-auto drop-shadow-md">
-              Excellence in Healthcare, Education, and Research.
-            </p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-4 items-center text-center">
+          <div className="animate-fade-in-up space-y-8">
+            <div className="inline-block bg-black/50 backdrop-blur-sm px-8 py-6 rounded-2xl">
+              <h1 className="text-4xl md:text-6xl font-bold font-serif text-white leading-tight drop-shadow-lg">
+                Join the Team at <br />
+                <span className="text-brand-teal">Kashim Ibrahim University</span> <br />
+                Teaching Hospital
+              </h1>
+            </div>
+            <div className="inline-block bg-black/50 backdrop-blur-sm px-8 py-4 rounded-2xl">
+              <p className="text-xl md:text-2xl text-white font-light drop-shadow-md">
+                Excellence in Healthcare, Education, and Research.
+              </p>
+            </div>
             <div className="pt-4">
               <button
                 onClick={() => onNavigate('jobs')}
