@@ -2,15 +2,8 @@ import { useState, useEffect } from 'react';
 import ProgressStepper from '../components/ProgressStepper';
 import FileUpload from '../components/FileUpload';
 import { supabase } from '../lib/supabase';
+import { Job } from '../types';
 
-interface Job {
-  id?: string;
-  title: string;
-  department: string;
-  requirements: string[];
-  required_documents: string[];
-  license_label: string;
-}
 
 export default function ApplyPage() {
   const [currentStep, setCurrentStep] = useState(1);

@@ -1,4 +1,4 @@
-import { Job } from '../data/jobsData';
+import { Job } from '../types';
 
 interface RequirementsModalProps {
     job: Job;
@@ -46,7 +46,7 @@ export default function RequirementsModal({ job, isOpen, onClose, onProceed }: R
                         <ul className="list-disc list-inside space-y-2 text-gray-700">
                             <li>CV / Resume</li>
                             <li>Passport Photograph</li>
-                            {job.requiredDocuments.map((doc, index) => (
+                            {job.required_documents.map((doc, index) => (
                                 <li key={index}>{doc}</li>
                             ))}
                         </ul>
@@ -67,7 +67,7 @@ export default function RequirementsModal({ job, isOpen, onClose, onProceed }: R
                         Proceed to Application
                     </button>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

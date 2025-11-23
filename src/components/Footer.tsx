@@ -26,8 +26,9 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold mb-4">Contact</h4>
             <ul className="space-y-2 text-sm text-gray-300">
-              <li>Maiduguri, Borno State</li>
+              <li>Maiduguri,Njimtilo Kano Road, Borno State</li>
               <li>Nigeria</li>
+              <li>P.M.B 1065</li>
               <li>Email: recruitment@kiuth.edu.ng</li>
               <li>Phone: +234 (0) 76 123 4567</li>
             </ul>

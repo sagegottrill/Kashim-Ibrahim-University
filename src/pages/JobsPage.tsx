@@ -66,13 +66,8 @@ export default function JobsPage({ onNavigate }: JobsPageProps) {
   const handleProceedToApply = () => {
     if (selectedJob) {
       setIsModalOpen(false);
-      // Pass the selected job title to the apply page
-      // We need to update the onNavigate prop signature or how we pass data
-      // For now, we'll assume onNavigate can handle params or we use a global state/context in a real app
-      // But since onNavigate is simple here, we might need to modify App.tsx or just pass it via localStorage/Context
-      // Let's assume onNavigate can take a second arg or we just navigate and ApplyPage reads from a prop if we could pass it.
-      // Given the current structure, we'll use localStorage for simplicity to pass the selected job
-      localStorage.setItem('selectedJobTitle', selectedJob.title);
+      // Store the full job object so ApplyPage can access all details
+      localStorage.setItem('selectedJobDetails', JSON.stringify(selectedJob));
       onNavigate('apply');
     }
   };
