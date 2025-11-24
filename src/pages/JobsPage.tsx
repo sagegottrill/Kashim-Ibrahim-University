@@ -118,13 +118,31 @@ export default function JobsPage({ onNavigate }: JobsPageProps) {
                 <strong>Note:</strong> Only shortlisted candidates will receive an acknowledgment and be invited for an interview.
               </p>
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mt-4">
-                <p className="text-sm font-semibold text-brand-blue mb-2">All applications should be addressed to:</p>
+                <p className="text-gray-600 mb-4">
+                  Write an application letter attached with subject title of the position addressed to:
+                </p>
                 <address className="text-sm text-gray-700 not-italic leading-relaxed">
                   <strong>The Director of Administration</strong><br />
                   Kashim Ibrahim University Teaching Hospital<br />
                   P.M.B. 1065, Njimtilo, Kano Road,<br />
                   Maiduguri, Borno State.
                 </address>
+
+                <div className="mt-6 border-t border-gray-200 pt-4">
+                  <p className="text-sm font-semibold text-[#1e3a5f] mb-2">Documents to be combined (in order):</p>
+                  <ul className="list-decimal pl-5 text-sm text-gray-600 space-y-1">
+                    <li className="font-medium text-brand-blue">Application Letter</li>
+                    <li>Curriculum Vitae (CV)</li>
+                    <li>Relevant Certificates (e.g., RN/RM, Degree, NMCN Registration)</li>
+                    <li>Current Practicing License (if applicable)</li>
+                    <li>Computer Proficiency Certificate</li>
+                  </ul>
+                </div>
+              </div>
+              <div className="mt-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+                <p className="text-sm text-yellow-800">
+                  <strong>Important:</strong> All documents must be merged into one PDF file before uploading.
+                </p>
               </div>
             </div>
           </div>
@@ -168,41 +186,6 @@ export default function JobsPage({ onNavigate }: JobsPageProps) {
               </button>
             </div>
           )}
-
-          {/* General Requirements & Application Method */}
-          <div className="mt-16 bg-white rounded-lg shadow-sm border border-gray-100 p-8">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-[#1e3a5f] mb-4">General Requirements</h2>
-              <ul className="list-disc list-inside text-gray-700 space-y-2">
-                <li>Required academic and professional qualifications must be met.</li>
-                <li>NYSC discharge or exemption certificate is mandatory.</li>
-                <li>ICT proficiency is required.</li>
-              </ul>
-            </div>
-
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-[#1e3a5f] mb-4">Method of Application</h2>
-              <p className="text-gray-700 mb-4">
-                Applications must be submitted within six (6) weeks from the date of this advertisement.
-                <br />
-                <span className="italic text-sm text-gray-500">Note: Only shortlisted candidates will receive an acknowledgment and be invited for an interview.</span>
-              </p>
-              <div className="bg-gray-50 p-6 rounded-md border-l-4 border-[#1e3a5f]">
-                <p className="font-semibold text-gray-900 mb-2">All applications should be addressed to:</p>
-                <address className="not-italic text-gray-700">
-                  The Director of Administration<br />
-                  Kashim Ibrahim University Teaching Hospital<br />
-                  P.M.B. 1065, Njimtilo, Kano Road,<br />
-                  Maiduguri, Borno State.
-                </address>
-              </div>
-            </div>
-
-            <div className="text-right mt-12 pt-8 border-t border-gray-100">
-              <p className="font-bold text-[#1e3a5f]">Signed</p>
-              <p className="text-gray-600">Management</p>
-            </div>
-          </div>
         </div>
       </div>
 

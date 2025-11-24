@@ -39,17 +39,24 @@ export default function RequirementsModal({ job, isOpen, onClose, onProceed }: R
                             ))}
                         </ul>
                     </div>
-
                     <div className="bg-green-50 p-5 rounded-lg border border-green-100">
                         <h3 className="text-lg font-semibold text-[#1e3a5f] mb-3">Required Documents</h3>
-                        <p className="text-sm text-gray-600 mb-3">You will need to upload the following documents:</p>
-                        <ul className="list-disc list-inside space-y-2 text-gray-700">
-                            <li>CV / Resume</li>
-                            <li>Passport Photograph</li>
+                        <p className="text-sm text-gray-600 mb-3">
+                            You will need to combine ALL the following documents into <strong>ONE single PDF file</strong>:
+                        </p>
+                        <ul className="list-disc pl-5 space-y-2 text-gray-600 mb-6">
+                            <li className="font-medium text-brand-blue">Application Letter</li>
+                            <li className="font-medium text-brand-blue">Curriculum Vitae (CV)</li>
                             {job.required_documents.map((doc, index) => (
                                 <li key={index}>{doc}</li>
                             ))}
+                            <li>Computer Proficiency Certificate (any computer-related certification)</li>
                         </ul>
+                        <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                            <p className="text-xs text-yellow-800">
+                                <strong>Important:</strong> All documents must be merged into one PDF file before uploading.
+                            </p>
+                        </div>
                     </div>
                 </div>
 

@@ -13,7 +13,6 @@ export default function HomePage({ onNavigate }: HomePageProps) {
           <div className="animate-fade-in-up space-y-8">
             <div className="inline-block bg-black/50 backdrop-blur-sm px-8 py-6 rounded-2xl">
               <h1 className="text-4xl md:text-6xl font-bold font-serif text-white leading-tight drop-shadow-lg">
-                Join the Team at <br />
                 <span className="text-brand-teal">Kashim Ibrahim University</span> <br />
                 Teaching Hospital
               </h1>
@@ -50,17 +49,17 @@ export default function HomePage({ onNavigate }: HomePageProps) {
               {
                 title: 'Training Hospital',
                 description: 'Learn from experienced professionals in a world-class teaching hospital environment.',
-                image: '/site/1.jpg'
+                image: '/train.jpg'
               },
               {
                 title: 'Career Growth',
                 description: 'Opportunities for professional development, research, and specialization.',
-                image: '/site/2.jpg'
+                image: '/carrer.jpg'
               },
               {
                 title: 'Community Impact',
                 description: 'Serve the community and contribute to improving healthcare in the region.',
-                image: '/site/99.jpg'
+                image: '/impc.jpg'
               }
             ].map((item, index) => (
               <div key={index} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 group">

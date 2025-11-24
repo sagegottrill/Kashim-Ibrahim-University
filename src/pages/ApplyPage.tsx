@@ -4,14 +4,41 @@ import FileUpload from '../components/FileUpload';
 import { supabase } from '../lib/supabase';
 import { Job } from '../types';
 
+const nigerianStates = [
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta",
+  "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT - Abuja", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina",
+  "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers",
+  "Sokoto", "Taraba", "Yobe", "Zamfara"
+];
 
 export default function ApplyPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
-  const [refNumber] = useState(`KIUTH - 2025 - ${Math.floor(1000 + Math.random() * 9000)} `);
+  const [refNumber] = useState(`KIUTH-2025-${Math.floor(1000 + Math.random() * 9000)}`);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [jobsList, setJobsList] = useState<Job[]>([]);
 
+  const [formData, setFormData] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+    date_of_birth: '',
+    state_of_origin: '',
+    lga: '',
+    nin_number: '',
+    address: '',
+    position: '',
+    department: '',
+    specialty: '',
+    qualification: '',
+    year_of_graduation: '',
+    license_number: '',
+    institution: '',
+    reference_number: '',
+    cv: null as File | null,
+    passport: null as File | null,
+    ndpr_consent: false
+  });
 
   useEffect(() => {
     const fetchJobs = async () => {
@@ -35,31 +62,13 @@ export default function ApplyPage() {
     fetchJobs();
   }, []);
 
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    state: '',
-    lga: '',
-    position: '',
-    department: '',
-    specialty: '',
-    qualification: '',
-    yearGrad: '',
-    license: '',
-    institution: '',
-    cv: null as File | null,
-    photo: null as File | null,
-    ndprConsent: false
-  });
-
   const steps = ['Personal', 'Position', 'Qualifications', 'Uploads', 'Review'];
-
-  const [dynamicDocs, setDynamicDocs] = useState<Record<string, File | null>>({});
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
       if (currentStep < 5) setCurrentStep(currentStep + 1);
+    } else {
+      alert('Please fill in all required fields for this step.');
     }
   };
 
@@ -69,12 +78,18 @@ export default function ApplyPage() {
 
   const validateStep = (step: number) => {
     switch (step) {
-      case 1: // Personal Details
-        if (!formData.fullName || !formData.email || !formData.phone || !formData.state || !formData.lga) {
-          alert('Please fill in all personal details');
-          return false;
-        }
-        return true;
+      case 1: // Personal Info
+        return (
+          formData.full_name &&
+          formData.email &&
+          formData.phone &&
+          formData.date_of_birth &&
+          formData.state_of_origin &&
+          formData.lga &&
+          formData.nin_number &&
+          formData.address &&
+          formData.passport
+        );
       case 2: // Position Details
         if (!formData.position) {
           alert('Please select a position');
@@ -82,24 +97,15 @@ export default function ApplyPage() {
         }
         return true;
       case 3: // Qualifications
-        if (!formData.qualification || !formData.yearGrad || !formData.institution) {
+        if (!formData.qualification || !formData.year_of_graduation || !formData.institution) {
           alert('Please fill in your qualification details');
           return false;
         }
         return true;
       case 4: // Uploads
-        if (!formData.cv || !formData.photo || !formData.ndprConsent) {
-          alert('Please upload your CV, Passport Photo and accept NDPR consent');
+        if (!formData.cv || !formData.ndpr_consent) {
+          alert('Please upload your combined documents PDF and accept NDPR consent');
           return false;
-        }
-
-        // Validate dynamic required documents
-        if (selectedJob) {
-          const missingDocs = selectedJob.required_documents.filter(doc => !dynamicDocs[doc]);
-          if (missingDocs.length > 0) {
-            alert(`Please upload the following required documents: ${missingDocs.join(', ')} `);
-            return false;
-          }
         }
         return true;
       default:
@@ -110,12 +116,10 @@ export default function ApplyPage() {
   const handleSubmit = async () => {
     try {
       setSubmitted(false); // Reset submitted state if retrying
-      // Show loading state here if you had one, e.g., setIsSubmitting(true)
 
-      // 1. Upload Files
+      // 1. Upload Combined Documents PDF and Passport
       const uploadFile = async (file: File, folder: string, name: string) => {
         const fileExt = file.name.split('.').pop();
-        // Sanitize file name to avoid issues
         const sanitizedName = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
         const fileName = `${folder}/${sanitizedName}_${Math.random().toString(36).substring(7)}.${fileExt}`;
 
@@ -128,51 +132,48 @@ export default function ApplyPage() {
       };
 
       const folderName = `${refNumber}`;
-      let cvPath = null;
-      let photoPath = null;
-      const otherDocsData: { name: string; path: string }[] = [];
+      let combinedDocsPath = null;
+      let passportPath = null;
 
-      if (formData.cv) cvPath = await uploadFile(formData.cv, folderName, 'cv');
-      if (formData.photo) photoPath = await uploadFile(formData.photo, folderName, 'passport_photo');
-
-      // Upload dynamic docs
-      if (selectedJob) {
-        for (const docName of selectedJob.required_documents) {
-          const file = dynamicDocs[docName];
-          if (file) {
-            const path = await uploadFile(file, folderName, docName);
-            otherDocsData.push({ name: docName, path });
-          }
-        }
+      if (formData.cv) {
+        combinedDocsPath = await uploadFile(formData.cv, folderName, 'combined_documents');
+      }
+      if (formData.passport) {
+        passportPath = await uploadFile(formData.passport, folderName, 'passport_photo');
       }
 
-      // 2. Insert Data
+      // 2. Insert Application Data
       const { error: insertError } = await supabase
         .from('applications')
         .insert([
           {
-            full_name: formData.fullName,
+            full_name: formData.full_name,
             email: formData.email,
             phone: formData.phone,
-            state_of_origin: formData.state,
+            date_of_birth: formData.date_of_birth,
+            state_of_origin: formData.state_of_origin,
             lga: formData.lga,
+            nin_number: formData.nin_number,
+            address: formData.address,
             position: formData.position,
             department: formData.department,
             specialty: formData.specialty,
             qualification: formData.qualification,
-            year_of_graduation: formData.yearGrad,
-            license_number: formData.license,
+            year_of_graduation: formData.year_of_graduation,
+            license_number: formData.license_number,
             institution: formData.institution,
             reference_number: refNumber,
-            cv_url: cvPath,
-            photo_url: photoPath,
-            other_documents: otherDocsData
+            cv_url: combinedDocsPath,
+            photo_url: passportPath,
+            other_documents: [] // No longer needed
           }
         ]);
 
       if (insertError) throw insertError;
 
       setSubmitted(true);
+      // Clear localStorage after successful submission
+      localStorage.removeItem('selectedJobDetails');
     } catch (error) {
       console.error('Error submitting application:', error);
       alert('There was an error submitting your application. Please try again.');
@@ -209,54 +210,102 @@ export default function ApplyPage() {
       <div className="bg-white rounded-lg shadow-lg p-8">
         <ProgressStepper currentStep={currentStep} steps={steps} />
 
-        {/* Step 1: Personal Details */}
+        {/* Step 1: Personal Information */}
         {currentStep === 1 && (
-          <div className="space-y-4">
+          <div className="space-y-6 animate-fade-in-up">
             <h3 className="text-xl font-semibold text-[#1e3a5f] mb-4">Personal Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                 <input
                   type="text"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e]"
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e] focus:border-transparent"
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                 <input
                   type="email"
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e] focus:border-transparent"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e]"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
                 <input
                   type="tel"
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e] focus:border-transparent"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e]"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">State of Origin</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                <input
+                  type="date"
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e] focus:border-transparent"
+                  value={formData.date_of_birth}
+                  onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">NIN Number</label>
                 <input
                   type="text"
-                  value={formData.state}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e]"
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e] focus:border-transparent"
+                  value={formData.nin_number}
+                  onChange={(e) => setFormData({ ...formData, nin_number: e.target.value })}
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">LGA</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Residential Address</label>
+                <textarea
+                  required
+                  rows={2}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e] focus:border-transparent"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">State of Origin</label>
+                <select
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e] focus:border-transparent"
+                  value={formData.state_of_origin}
+                  onChange={(e) => setFormData({ ...formData, state_of_origin: e.target.value })}
+                >
+                  <option value="">Select State</option>
+                  {nigerianStates.map(state => (
+                    <option key={state} value={state}>{state}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">LGA</label>
                 <input
                   type="text"
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e] focus:border-transparent"
                   value={formData.lga}
                   onChange={(e) => setFormData({ ...formData, lga: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e]"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Passport Photograph</label>
+                <p className="text-xs text-gray-500 mb-2">Upload a recent passport photograph (JPG/PNG, max 2MB).</p>
+                <FileUpload
+                  accept=".jpg,.jpeg,.png"
+                  label="Upload Passport"
+                  onChange={(file) => setFormData({ ...formData, passport: file })}
                 />
               </div>
             </div>
@@ -342,8 +391,8 @@ export default function ApplyPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Year of Graduation</label>
                 <input
                   type="text"
-                  value={formData.yearGrad}
-                  onChange={(e) => setFormData({ ...formData, yearGrad: e.target.value })}
+                  value={formData.year_of_graduation}
+                  onChange={(e) => setFormData({ ...formData, year_of_graduation: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e]"
                 />
               </div>
@@ -353,8 +402,8 @@ export default function ApplyPage() {
                 </label>
                 <input
                   type="text"
-                  value={formData.license}
-                  onChange={(e) => setFormData({ ...formData, license: e.target.value })}
+                  value={formData.license_number}
+                  onChange={(e) => setFormData({ ...formData, license_number: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e] focus:border-transparent"
                   placeholder={selectedJob?.license_label ? `Enter your ${selectedJob.license_label}` : "Enter license number if applicable"}
                 />
@@ -376,34 +425,42 @@ export default function ApplyPage() {
         {currentStep === 4 && (
           <div className="space-y-6">
             <h3 className="text-xl font-semibold text-[#1e3a5f] mb-4">Document Uploads</h3>
-            <p className="text-sm text-gray-500 mb-4">Please upload the following mandatory documents for <span className="font-semibold">{formData.position}</span>. Fields marked with <span className="text-red-500">*</span> are required.</p>
+
+            {/* Required Documents List */}
+            {selectedJob && (
+              <div className="bg-blue-50 p-5 rounded-lg border border-blue-200 mb-6">
+                <h4 className="font-semibold text-[#1e3a5f] mb-3">Required Documents for {selectedJob.title}</h4>
+                <p className="text-sm text-gray-700 mb-3">
+                  Please combine ALL the following documents into <strong>ONE single PDF file</strong> before uploading:
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                  <li className="font-medium text-brand-blue">Application Letter</li>
+                  <li className="font-medium text-brand-blue">Curriculum Vitae (CV)</li>
+                  {selectedJob.required_documents.map((doc, index) => (
+                    <li key={index}>{doc}</li>
+                  ))}
+                  <li>Computer Proficiency Certificate (any computer-related certification)</li>
+                </ul>
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="text-sm text-yellow-800">
+                    <strong>Important:</strong> All documents must be merged into one PDF file. Separate uploads will not be accepted.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <FileUpload
-              label="CV / Resume *"
+              label="Combined Documents (All documents in ONE PDF) *"
               accept=".pdf"
               onChange={(file) => setFormData({ ...formData, cv: file })}
             />
-
-            {/* Dynamic Documents based on Job Data */}
-            {selectedJob && selectedJob.required_documents.map((docName, idx) => (
-              <FileUpload
-                key={idx}
-                label={`${docName} *`}
-                accept=".pdf,.jpg,.png"
-                onChange={(file) => {
-                  setDynamicDocs(prev => ({ ...prev, [docName]: file }));
-                }}
-              />
-            ))}
-
-            <FileUpload label="Passport Photo *" accept=".jpg,.png" onChange={(file) => setFormData({ ...formData, photo: file })} />
 
             <div className="mt-6">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={formData.ndprConsent}
-                  onChange={(e) => setFormData({ ...formData, ndprConsent: e.target.checked })}
+                  checked={formData.ndpr_consent}
+                  onChange={(e) => setFormData({ ...formData, ndpr_consent: e.target.checked })}
                   className="mt-1"
                 />
                 <span className="text-sm text-gray-700">
@@ -422,7 +479,7 @@ export default function ApplyPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Full Name</p>
-                  <p className="font-medium">{formData.fullName || 'Not provided'}</p>
+                  <p className="font-medium">{formData.full_name || 'Not provided'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Email</p>
