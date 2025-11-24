@@ -1,15 +1,65 @@
+import { useState, useEffect, useRef } from 'react';
+import { Award, Building2, Heart } from 'lucide-react';
+
 interface HomePageProps {
   onNavigate: (page: string) => void;
 }
 
 export default function HomePage({ onNavigate }: HomePageProps) {
+  const [stats, setStats] = useState({ beds: 0, departments: 0, wards: 0 });
+  const statsRef = useRef<HTMLDivElement>(null);
+  const [hasAnimated, setHasAnimated] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !hasAnimated) {
+          animateStats();
+          setHasAnimated(true);
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    if (statsRef.current) {
+      observer.observe(statsRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasAnimated]);
+
+  const animateStats = () => {
+    const duration = 2000;
+    const targets = { beds: 400, departments: 13, wards: 17 };
+    const steps = 60;
+    const stepDuration = duration / steps;
+
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      currentStep++;
+      const progress = currentStep / steps;
+
+      setStats({
+        beds: Math.floor(targets.beds * progress),
+        departments: Math.floor(targets.departments * progress),
+        wards: Math.floor(targets.wards * progress),
+      });
+
+      if (currentStep >= steps) {
+        clearInterval(interval);
+        setStats(targets);
+      }
+    }, stepDuration);
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
       <section className="relative h-[600px] bg-cover bg-center" style={{
         backgroundImage: `url(/hero.png)`
       }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-4 items-center text-center">
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/60"></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-end pb-16 items-center text-center relative z-10">
           <div className="animate-fade-in-up space-y-8">
             <div className="inline-block bg-black/50 backdrop-blur-sm px-8 py-6 rounded-2xl">
               <h1 className="text-4xl md:text-6xl font-bold font-serif text-white leading-tight drop-shadow-lg">
@@ -22,20 +72,58 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                 Excellence in Healthcare, Education, and Research.
               </p>
             </div>
-            <div className="pt-4">
+            <div className="pt-4 flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={() => onNavigate('jobs')}
                 className="bg-brand-teal text-white px-10 py-4 rounded-full font-semibold text-lg hover:bg-[#3d8568] transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
               >
                 View Open Positions
               </button>
+              <button
+                onClick={() => {
+                  const element = document.getElementById('why-kiuth');
+                  element?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="bg-white/10 backdrop-blur-sm text-white border-2 border-white px-10 py-4 rounded-full font-semibold text-lg hover:bg-white hover:text-brand-blue transition-all duration-300 shadow-lg"
+              >
+                Learn More
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Statistics Section */}
+      <section ref={statsRef} className="py-16 bg-brand-blue text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="flex justify-center mb-3">
+                <Building2 className="w-12 h-12 text-brand-teal" />
+              </div>
+              <div className="text-4xl font-bold mb-2">{stats.beds}</div>
+              <div className="text-gray-300">Bed Capacity</div>
+            </div>
+            <div className="text-center">
+              <div className="flex justify-center mb-3">
+                <Award className="w-12 h-12 text-brand-teal" />
+              </div>
+              <div className="text-4xl font-bold mb-2">{stats.departments}</div>
+              <div className="text-gray-300">Specialized Departments</div>
+            </div>
+            <div className="text-center">
+              <div className="flex justify-center mb-3">
+                <Heart className="w-12 h-12 text-brand-teal" />
+              </div>
+              <div className="text-4xl font-bold mb-2">{stats.wards}</div>
+              <div className="text-gray-300">Medical Wards</div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Why Work With KIUTH */}
-      <section className="py-24 bg-gray-50">
+      <section id="why-kiuth" className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold font-serif text-brand-blue mb-6">Why Work With KIUTH?</h2>

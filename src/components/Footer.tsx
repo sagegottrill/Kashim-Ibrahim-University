@@ -1,54 +1,208 @@
-export default function Footer() {
+import { useState } from 'react';
+import { Facebook, Twitter, Linkedin, Instagram, ArrowUp, Mail } from 'lucide-react';
+import { toast } from 'sonner';
+
+interface FooterProps {
+  onNavigate?: (page: string) => void;
+}
+
+export default function Footer({ onNavigate }: FooterProps) {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleNewsletterSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    // Simulate newsletter signup
+    setTimeout(() => {
+      toast.success('Successfully subscribed to job alerts!');
+      setEmail('');
+      setLoading(false);
+    }, 1000);
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleNavigation = (page: string) => {
+    if (onNavigate) {
+      onNavigate(page);
+      scrollToTop();
+    }
+  };
+
   return (
-    <footer className="bg-[#1e3a5f] text-white mt-16">
+    <footer className="bg-brand-blue text-white mt-16 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          {/* About Section */}
           <div>
             <div className="flex items-center gap-3 mb-4">
               <img src="/logo.png" alt="KIUTH Logo" className="w-8 h-8 object-contain" />
               <h3 className="text-lg font-semibold">KIUTH</h3>
             </div>
-            <p className="text-gray-300 text-sm">
+            <p className="text-gray-300 text-sm leading-relaxed">
               Kashim Ibrahim University Teaching Hospital - Building Borno's Future Healthcare Workforce
             </p>
+
+            {/* Social Media */}
+            <div className="flex gap-3 mt-4">
+              <a
+                href="https://facebook.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-brand-teal transition-all duration-300 hover:scale-110"
+                aria-label="Facebook"
+              >
+                <Facebook className="w-4 h-4" />
+              </a>
+              <a
+                href="https://twitter.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-brand-teal transition-all duration-300 hover:scale-110"
+                aria-label="Twitter"
+              >
+                <Twitter className="w-4 h-4" />
+              </a>
+              <a
+                href="https://linkedin.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-brand-teal transition-all duration-300 hover:scale-110"
+                aria-label="LinkedIn"
+              >
+                <Linkedin className="w-4 h-4" />
+              </a>
+              <a
+                href="https://instagram.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-brand-teal transition-all duration-300 hover:scale-110"
+                aria-label="Instagram"
+              >
+                <Instagram className="w-4 h-4" />
+              </a>
+            </div>
           </div>
 
+          {/* Quick Links */}
           <div>
             <h4 className="font-semibold mb-4">Quick Links</h4>
             <ul className="space-y-2 text-sm">
-              <li><a href="#" className="text-gray-300 hover:text-[#4a9d7e] transition-colors">Home</a></li>
-              <li><a href="#" className="text-gray-300 hover:text-[#4a9d7e] transition-colors">Job Listings</a></li>
-              <li><a href="#" className="text-gray-300 hover:text-[#4a9d7e] transition-colors">Apply Now</a></li>
-              <li><a href="#" className="text-gray-300 hover:text-[#4a9d7e] transition-colors">Contact Us</a></li>
+              <li>
+                <button
+                  onClick={() => handleNavigation('home')}
+                  className="text-gray-300 hover:text-brand-teal transition-colors text-left"
+                >
+                  Home
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => handleNavigation('jobs')}
+                  className="text-gray-300 hover:text-brand-teal transition-colors text-left"
+                >
+                  Job Listings
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => handleNavigation('dashboard')}
+                  className="text-gray-300 hover:text-brand-teal transition-colors text-left"
+                >
+                  Check Status
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => handleNavigation('contact')}
+                  className="text-gray-300 hover:text-brand-teal transition-colors text-left"
+                >
+                  Contact Us
+                </button>
+              </li>
             </ul>
           </div>
 
+          {/* Contact */}
           <div>
             <h4 className="font-semibold mb-4">Contact</h4>
             <ul className="space-y-2 text-sm text-gray-300">
-              <li>Maiduguri,Njimtilo Kano Road, Borno State</li>
-              <li>Nigeria</li>
+              <li>Maiduguri, Njimtilo Kano Road</li>
+              <li>Borno State, Nigeria</li>
               <li>P.M.B 1065</li>
-              <li>Email: recruitment@kiuth.edu.ng</li>
-              <li>Phone: +234 (0) 76 123 4567</li>
+              <li>
+                <a href="mailto:recruitment@kiuth.edu.ng" className="hover:text-brand-teal transition-colors">
+                  recruitment@kiuth.edu.ng
+                </a>
+              </li>
+              <li>
+                <a href="tel:+2347612345 67" className="hover:text-brand-teal transition-colors">
+                  +234 (0) 76 123 4567
+                </a>
+              </li>
             </ul>
           </div>
 
+          {/* Newsletter */}
           <div>
-            <h4 className="font-semibold mb-4">Legal</h4>
-            <ul className="space-y-2 text-sm">
-              <li><a href="#" className="text-gray-300 hover:text-[#4a9d7e] transition-colors">Privacy Policy</a></li>
-              <li><a href="#" className="text-gray-300 hover:text-[#4a9d7e] transition-colors">Terms of Service</a></li>
-
-            </ul>
+            <h4 className="font-semibold mb-4">Job Alerts</h4>
+            <p className="text-gray-300 text-sm mb-4">
+              Subscribe to receive notifications about new job openings
+            </p>
+            <form onSubmit={handleNewsletterSignup} className="space-y-2">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Your email"
+                  required
+                  className="w-full pl-10 pr-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-teal focus:border-transparent"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-brand-teal text-white py-2 rounded-lg font-medium hover:bg-[#3d8568] transition-colors disabled:opacity-50"
+              >
+                {loading ? 'Subscribing...' : 'Subscribe'}
+              </button>
+            </form>
           </div>
         </div>
 
-        <div className="border-t border-gray-700 mt-8 pt-8 text-center text-sm text-gray-300">
+        <div className="border-t border-gray-700 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-gray-300">
           <p>&copy; 2025 Orivon Edge. All rights reserved.</p>
-
+          <div className="flex gap-6">
+            <button
+              onClick={() => handleNavigation('home')}
+              className="hover:text-brand-teal transition-colors"
+            >
+              Privacy Policy
+            </button>
+            <button
+              onClick={() => handleNavigation('home')}
+              className="hover:text-brand-teal transition-colors"
+            >
+              Terms of Service
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Back to Top Button */}
+      <button
+        onClick={scrollToTop}
+        className="fixed bottom-8 right-8 w-12 h-12 bg-brand-teal text-white rounded-full shadow-lg hover:bg-[#3d8568] transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 z-50"
+        aria-label="Scroll to top"
+      >
+        <ArrowUp className="w-5 h-5 mx-auto" />
+      </button>
     </footer>
   );
 }
