@@ -1,56 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
-import { Award, Building2, Heart } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface HomePageProps {
   onNavigate: (page: string) => void;
 }
 
 export default function HomePage({ onNavigate }: HomePageProps) {
-  const [stats, setStats] = useState({ beds: 0, departments: 0, wards: 0 });
-  const statsRef = useRef<HTMLDivElement>(null);
-  const [hasAnimated, setHasAnimated] = useState(false);
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !hasAnimated) {
-          animateStats();
-          setHasAnimated(true);
-        }
-      },
-      { threshold: 0.5 }
-    );
-
-    if (statsRef.current) {
-      observer.observe(statsRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, [hasAnimated]);
-
-  const animateStats = () => {
-    const duration = 2000;
-    const targets = { beds: 400, departments: 13, wards: 17 };
-    const steps = 60;
-    const stepDuration = duration / steps;
-
-    let currentStep = 0;
-    const interval = setInterval(() => {
-      currentStep++;
-      const progress = currentStep / steps;
-
-      setStats({
-        beds: Math.floor(targets.beds * progress),
-        departments: Math.floor(targets.departments * progress),
-        wards: Math.floor(targets.wards * progress),
-      });
-
-      if (currentStep >= steps) {
-        clearInterval(interval);
-        setStats(targets);
-      }
-    }, stepDuration);
-  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -94,33 +49,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
       </section>
 
       {/* Statistics Section */}
-      <section ref={statsRef} className="py-16 bg-brand-blue text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="flex justify-center mb-3">
-                <Building2 className="w-12 h-12 text-brand-teal" />
-              </div>
-              <div className="text-4xl font-bold mb-2">{stats.beds}</div>
-              <div className="text-gray-300">Bed Capacity</div>
-            </div>
-            <div className="text-center">
-              <div className="flex justify-center mb-3">
-                <Award className="w-12 h-12 text-brand-teal" />
-              </div>
-              <div className="text-4xl font-bold mb-2">{stats.departments}</div>
-              <div className="text-gray-300">Specialized Departments</div>
-            </div>
-            <div className="text-center">
-              <div className="flex justify-center mb-3">
-                <Heart className="w-12 h-12 text-brand-teal" />
-              </div>
-              <div className="text-4xl font-bold mb-2">{stats.wards}</div>
-              <div className="text-gray-300">Medical Wards</div>
-            </div>
-          </div>
-        </div>
-      </section>
+
 
       {/* Why Work With KIUTH */}
       <section id="why-kiuth" className="py-24 bg-gray-50">

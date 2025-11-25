@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import JobCard from '../components/JobCard';
 import RequirementsModal from '../components/RequirementsModal';
 import { supabase } from '../lib/supabase';
@@ -10,6 +12,8 @@ interface JobsPageProps {
 }
 
 export default function JobsPage({ onNavigate }: JobsPageProps) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -68,6 +72,18 @@ export default function JobsPage({ onNavigate }: JobsPageProps) {
       setIsModalOpen(false);
       // Store the full job object so ApplyPage can access all details
       localStorage.setItem('selectedJobDetails', JSON.stringify(selectedJob));
+
+      if (!user) {
+        // Redirect to auth page with return path
+        navigate('/auth', {
+          state: {
+            returnTo: '/',
+            view: 'apply'
+          }
+        });
+        return;
+      }
+
       onNavigate('apply');
     }
   };

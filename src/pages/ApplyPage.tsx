@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import ProgressStepper from '../components/ProgressStepper';
 import FileUpload from '../components/FileUpload';
 import { supabase } from '../lib/supabase';
 import { Job } from '../types';
+import { generateSlip } from '../utils/generateSlip';
 
 const nigerianStates = [
   "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta",
@@ -12,6 +14,7 @@ const nigerianStates = [
 ];
 
 export default function ApplyPage() {
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
   const [refNumber] = useState(`KIUTH-2025-${Math.floor(1000 + Math.random() * 9000)}`);
@@ -59,8 +62,35 @@ export default function ApplyPage() {
         }
       }
     };
+
+    const fetchUserProfile = async () => {
+      if (user?.uid) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.uid)
+          .single();
+
+        if (profile) {
+          setFormData(prev => ({
+            ...prev,
+            full_name: profile.full_name || '',
+            email: profile.email || user.email || '',
+            phone: profile.phone || '',
+          }));
+        } else if (user.email) {
+          // Fallback if no profile but we have email from auth
+          setFormData(prev => ({
+            ...prev,
+            email: user.email || '',
+          }));
+        }
+      }
+    };
+
     fetchJobs();
-  }, []);
+    fetchUserProfile();
+  }, [user]);
 
   const steps = ['Personal', 'Position', 'Qualifications', 'Uploads', 'Review'];
 
@@ -119,16 +149,37 @@ export default function ApplyPage() {
 
       // 1. Upload Combined Documents PDF and Passport
       const uploadFile = async (file: File, folder: string, name: string) => {
-        const fileExt = file.name.split('.').pop();
-        const sanitizedName = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        const fileName = `${folder}/${sanitizedName}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        // We use the PHP script for uploads
+        // In development, we might need to point to the live server if we don't have local PHP.
+        // For now, we assume the user will build and deploy, so relative path '/upload.php' works.
+        // Or we can use an env var. Let's use a relative path which works if the React app is served from the same domain.
+        // If testing locally against a live server, user needs to set VITE_UPLOAD_URL.
+        const uploadUrl = import.meta.env.VITE_UPLOAD_URL || '/upload.php';
 
-        const { data, error } = await supabase.storage
-          .from('job_documents')
-          .upload(fileName, file);
+        const formData = new FormData();
+        formData.append('file', file);
 
-        if (error) throw error;
-        return data.path;
+        try {
+          const response = await fetch(uploadUrl, {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            throw new Error(`Upload failed with status: ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          if (!data.success) {
+            throw new Error(data.message || 'Upload failed');
+          }
+
+          return data.url;
+        } catch (error) {
+          console.error('Upload error:', error);
+          throw error;
+        }
       };
 
       const folderName = `${refNumber}`;
@@ -180,7 +231,14 @@ export default function ApplyPage() {
     }
   };
 
+
+
+  // ... (inside the component)
+
   if (submitted) {
+    // Auto-generate slip on first render of success screen
+    // We can use a useEffect or just a button. A button is safer for browser popup blockers.
+
     return (
       <div className="max-w-2xl mx-auto px-4 py-12 text-center">
         <div className="bg-white rounded-lg shadow-lg p-8">
@@ -195,9 +253,28 @@ export default function ApplyPage() {
             <p className="text-sm text-gray-600 mb-2">Your Reference Number:</p>
             <p className="text-2xl font-bold text-[#4a9d7e]">{refNumber}</p>
           </div>
-          <p className="text-sm text-gray-600">
-            Please save this reference number for tracking your application status.
-          </p>
+
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Please download your Application Slip. You will need to present this at the interview.
+            </p>
+            <button
+              onClick={() => generateSlip({
+                full_name: formData.full_name,
+                reference_number: refNumber,
+                position: formData.position,
+                department: formData.department,
+                date_of_birth: formData.date_of_birth,
+                state_of_origin: formData.state_of_origin
+              })}
+              className="px-6 py-3 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162c4b] flex items-center justify-center mx-auto gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download Application Slip
+            </button>
+          </div>
         </div>
       </div>
     );

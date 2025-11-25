@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Home, Briefcase, LayoutDashboard, Phone, ShieldCheck, Menu, X, Clock } from 'lucide-react';
+import { Home, Briefcase, LayoutDashboard, Phone, ShieldCheck, Menu, X, Clock, User, LogOut } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 interface HeaderProps {
   currentPage: string;
@@ -7,8 +9,26 @@ interface HeaderProps {
 }
 
 export default function Header({ currentPage, onNavigate }: HeaderProps) {
+  const { user, logout } = useAuth();
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userName, setUserName] = useState('');
+
+  useEffect(() => {
+    const fetchUserName = async () => {
+      if (user?.uid) {
+        const { data } = await supabase
+          .from('users')
+          .select('full_name')
+          .eq('id', user.uid)
+          .single();
+        if (data?.full_name) {
+          setUserName(data.full_name);
+        }
+      }
+    };
+    fetchUserName();
+  }, [user]);
 
   useEffect(() => {
     // Set deadline to 6 weeks from roughly now (Nov 24, 2025) -> Jan 5, 2026
@@ -119,17 +139,34 @@ export default function Header({ currentPage, onNavigate }: HeaderProps) {
               })}
             </nav>
 
-            {/* Admin Link */}
-            <button
-              onClick={() => onNavigate('admin')}
-              className={`group flex items-center gap-2 px-5 py-2.5 rounded-full transition-all duration-300 shadow-sm hover:shadow-md ${currentPage === 'admin'
-                ? 'bg-brand-blue text-white ring-2 ring-offset-2 ring-brand-blue'
-                : 'bg-white text-gray-700 border border-gray-200 hover:border-brand-blue hover:text-brand-blue'
-                }`}
-            >
-              <ShieldCheck className={`w-4 h-4 transition-colors ${currentPage === 'admin' ? 'text-brand-teal' : 'text-gray-400 group-hover:text-brand-blue'}`} />
-              <span className="text-sm font-semibold">Admin Portal</span>
-            </button>
+            {/* User Profile / Admin Link */}
+            {user ? (
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-full border border-gray-200">
+                  <User className="w-4 h-4 text-brand-blue" />
+                  <span className="text-sm font-medium text-gray-700 truncate max-w-[150px]">
+                    {userName || user.email?.split('@')[0]}
+                  </span>
+                </div>
+                <button
+                  onClick={async () => {
+                    await logout();
+                    onNavigate('home');
+                  }}
+                  className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => onNavigate('auth')} // Assuming 'auth' is handled in AppLayout or we redirect
+                className="px-6 py-2.5 bg-brand-blue text-white rounded-full text-sm font-semibold shadow-md hover:bg-[#162c4b] transition-all"
+              >
+                Sign In
+              </button>
+            )}
           </div>
 
           {/* Mobile Menu Button (Right) */}
