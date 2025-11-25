@@ -1,5 +1,22 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import AdminSidebar from '../components/AdminSidebar';
+import AdminCharts from '../components/AdminCharts';
+import {
+  Search,
+  Filter,
+  Download,
+  MoreHorizontal,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Eye,
+  ChevronDown,
+  FileText,
+  Users
+} from 'lucide-react';
 
 interface Application {
   id: string;
@@ -10,9 +27,9 @@ interface Application {
   position: string;
   department: string;
   status: string;
-  cv_url: string; // This now points to the combined PDF
-  photo_url: string; // Legacy, might be same as cv_url or null
-  other_documents: { name: string; path: string }[]; // Legacy
+  cv_url: string;
+  photo_url: string;
+  other_documents: { name: string; path: string }[];
   reference_number: string;
   state_of_origin: string;
   lga: string;
@@ -23,10 +40,8 @@ interface Application {
 }
 
 export default function AdminPage() {
-  const [session, setSession] = useState<any>(null);
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [applications, setApplications] = useState<Application[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDept, setFilterDept] = useState('All');
@@ -34,22 +49,16 @@ export default function AdminPage() {
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [stats, setStats] = useState({ total: 0, pending: 0, shortlisted: 0, rejected: 0 });
 
+  // Dashboard State
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [selectedApps, setSelectedApps] = useState<string[]>([]);
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) fetchApplications();
-      setLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) fetchApplications();
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    if (user) {
+      fetchApplications();
+    }
+  }, [user]);
 
   const fetchApplications = async () => {
     try {
@@ -63,8 +72,10 @@ export default function AdminPage() {
       const apps = data || [];
       setApplications(apps);
       calculateStats(apps);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching applications:', error);
+      setLoading(false);
     }
   };
 
@@ -76,40 +87,6 @@ export default function AdminPage() {
       rejected: apps.filter(a => a.status === 'Rejected').length
     };
     setStats(newStats);
-  };
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      alert(error.message);
-    }
-    setLoading(false);
-  };
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin + '/admin',
-      },
-    });
-
-    if (error) {
-      alert(error.message);
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setApplications([]);
   };
 
   const updateStatus = async (id: string, newStatus: string) => {
@@ -136,10 +113,62 @@ export default function AdminPage() {
     }
   };
 
+  const handleBulkStatusUpdate = async (newStatus: string) => {
+    if (selectedApps.length === 0) return;
+
+    if (!confirm(`Are you sure you want to mark ${selectedApps.length} applications as ${newStatus}?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .update({ status: newStatus })
+        .in('id', selectedApps);
+
+      if (error) throw error;
+
+      const updatedApps = applications.map(app =>
+        selectedApps.includes(app.id) ? { ...app, status: newStatus } : app
+      );
+      setApplications(updatedApps);
+      calculateStats(updatedApps);
+      setSelectedApps([]);
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Failed to update status');
+    }
+  };
+
   const getFileUrl = (path: string) => {
     if (!path) return '#';
     const { data } = supabase.storage.from('job_documents').getPublicUrl(path);
     return data.publicUrl;
+  };
+
+  const exportToCSV = () => {
+    const headers = ['Reference', 'Full Name', 'Email', 'Phone', 'Position', 'Department', 'Status', 'Date Applied'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredApplicants.map(app => [
+        app.reference_number,
+        `"${app.full_name}"`,
+        app.email,
+        app.phone,
+        `"${app.position}"`,
+        `"${app.department}"`,
+        app.status || 'Pending',
+        new Date(app.created_at).toLocaleDateString()
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'applicants_export.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const filteredApplicants = applications.filter(app => {
@@ -154,6 +183,22 @@ export default function AdminPage() {
 
   const departments = ['All', ...Array.from(new Set(applications.map(a => a.department)))];
 
+  const toggleSelectAll = () => {
+    if (selectedApps.length === filteredApplicants.length) {
+      setSelectedApps([]);
+    } else {
+      setSelectedApps(filteredApplicants.map(a => a.id));
+    }
+  };
+
+  const toggleSelectApp = (id: string) => {
+    if (selectedApps.includes(id)) {
+      setSelectedApps(selectedApps.filter(a => a !== id));
+    } else {
+      setSelectedApps([...selectedApps, id]);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-50">
@@ -162,242 +207,329 @@ export default function AdminPage() {
     );
   }
 
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lg">
-          <div>
-            <h2 className="mt-6 text-center text-3xl font-extrabold text-[#1e3a5f]">
-              Admin Portal
-            </h2>
-            <p className="mt-2 text-center text-sm text-gray-600">
-              Sign in to manage recruitment
-            </p>
-          </div>
-          <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-            <div className="rounded-md shadow-sm -space-y-px">
-              <div>
-                <input
-                  type="email"
-                  required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-brand-teal focus:border-brand-teal focus:z-10 sm:text-sm"
-                  placeholder="Email address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div>
-                <input
-                  type="password"
-                  required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-brand-teal focus:border-brand-teal focus:z-10 sm:text-sm"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div>
-              <button
-                type="submit"
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-[#1e3a5f] hover:bg-[#162c46] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-teal transition-colors"
-              >
-                Sign in
-              </button>
-            </div>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
-              </div>
-            </div>
-
-            <div>
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                className="w-full flex justify-center items-center gap-3 px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-teal transition-colors"
-              >
-                <svg className="h-5 w-5" aria-hidden="true" viewBox="0 0 24 24">
-                  <path
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    fill="#4285F4"
-                  />
-                  <path
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    fill="#34A853"
-                  />
-                  <path
-                    d="M5.84 14.11c-.22-.66-.35-1.36-.35-2.11s.13-1.45.35-2.11V7.05H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.95l2.84-2.84z"
-                    fill="#FBBC05"
-                  />
-                  <path
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.05l3.66 2.84c.87-2.6 3.3-4.51 6.16-4.51z"
-                    fill="#EA4335"
-                  />
-                </svg>
-                Sign in with Google
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 pb-12">
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold text-[#1e3a5f]">HR Admin Dashboard</h1>
-            <div className="flex items-center gap-4">
-              <span className="text-gray-600">Welcome, {session.user.email}</span>
+    <div className="min-h-screen bg-gray-50 flex">
+      <AdminSidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isCollapsed={isSidebarCollapsed}
+        setIsCollapsed={setIsSidebarCollapsed}
+      />
+
+      <div className={`flex-1 transition-all duration-300 ${isSidebarCollapsed ? 'ml-20' : 'ml-0 md:ml-64'}`}>
+        <div className="p-8 max-w-[1600px] mx-auto">
+
+          {/* Header */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-[#1e3a5f]">
+                {activeTab === 'dashboard' && 'Dashboard Overview'}
+                {activeTab === 'applications' && 'Applications Management'}
+                {activeTab === 'analytics' && 'Analytics & Reports'}
+                {activeTab === 'settings' && 'Settings'}
+              </h1>
+              <p className="text-gray-500 text-sm mt-1">Manage your recruitment process efficiently</p>
+            </div>
+
+            <div className="flex gap-3">
               <button
-                onClick={handleLogout}
-                className="bg-red-50 text-red-600 px-4 py-2 rounded-lg hover:bg-red-100 transition-colors font-medium"
+                onClick={exportToCSV}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
               >
-                Logout
+                <Download size={18} />
+                <span className="hidden sm:inline">Export CSV</span>
               </button>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <div className="text-gray-500 text-sm font-medium uppercase">Total Applications</div>
-            <div className="text-3xl font-bold text-[#1e3a5f] mt-2">{stats.total}</div>
-          </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <div className="text-yellow-600 text-sm font-medium uppercase">Pending Review</div>
-            <div className="text-3xl font-bold text-yellow-600 mt-2">{stats.pending}</div>
-          </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <div className="text-green-600 text-sm font-medium uppercase">Shortlisted</div>
-            <div className="text-3xl font-bold text-green-600 mt-2">{stats.shortlisted}</div>
-          </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <div className="text-red-600 text-sm font-medium uppercase">Rejected</div>
-            <div className="text-3xl font-bold text-red-600 mt-2">{stats.rejected}</div>
-          </div>
-        </div>
+          {/* Dashboard View */}
+          {activeTab === 'dashboard' && (
+            <div className="space-y-6">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group">
+                  <div className="absolute right-0 top-0 w-24 h-24 bg-blue-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                  <div className="relative z-10">
+                    <div className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Applications</div>
+                    <div className="text-3xl font-bold text-[#1e3a5f] mt-2">{stats.total}</div>
+                    <div className="mt-2 text-xs text-green-600 flex items-center gap-1">
+                      <span className="bg-green-100 px-1.5 py-0.5 rounded">All time</span>
+                    </div>
+                  </div>
+                </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-100">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
-              <input
-                type="text"
-                placeholder="Search by name, position or ref number..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-              <select
-                value={filterDept}
-                onChange={(e) => setFilterDept(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-transparent"
-              >
-                {departments.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-teal focus:border-transparent"
-              >
-                <option value="All">All Statuses</option>
-                <option value="Pending">Pending</option>
-                <option value="Shortlisted">Shortlisted</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-            </div>
-          </div>
-        </div>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group">
+                  <div className="absolute right-0 top-0 w-24 h-24 bg-yellow-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                  <div className="relative z-10">
+                    <div className="text-yellow-600 text-sm font-medium uppercase tracking-wider">Pending Review</div>
+                    <div className="text-3xl font-bold text-yellow-600 mt-2">{stats.pending}</div>
+                    <div className="mt-2 text-xs text-yellow-600 flex items-center gap-1">
+                      <Clock size={12} />
+                      <span>Needs attention</span>
+                    </div>
+                  </div>
+                </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Applied</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredApplicants.length > 0 ? (
-                  filteredApplicants.map(app => (
-                    <tr key={app.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="h-10 w-10 rounded-full bg-brand-blue/10 flex items-center justify-center text-brand-blue font-bold">
-                            {app.full_name.charAt(0)}
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">{app.full_name}</div>
-                            <div className="text-sm text-gray-500">{app.email}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{app.position}</div>
-                        <div className="text-xs text-gray-500">{app.department}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                          ${app.status === 'Shortlisted' ? 'bg-green-100 text-green-800' :
-                            app.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                              'bg-yellow-100 text-yellow-800'}`}>
-                          {app.status || 'Pending'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(app.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => setSelectedApp(app)}
-                          className="text-brand-teal hover:text-[#3d8568] font-medium"
-                        >
-                          View Details
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                      No applications found matching your criteria
-                    </td>
-                  </tr>
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group">
+                  <div className="absolute right-0 top-0 w-24 h-24 bg-green-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                  <div className="relative z-10">
+                    <div className="text-green-600 text-sm font-medium uppercase tracking-wider">Shortlisted</div>
+                    <div className="text-3xl font-bold text-green-600 mt-2">{stats.shortlisted}</div>
+                    <div className="mt-2 text-xs text-green-600 flex items-center gap-1">
+                      <CheckCircle size={12} />
+                      <span>Qualified candidates</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group">
+                  <div className="absolute right-0 top-0 w-24 h-24 bg-red-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                  <div className="relative z-10">
+                    <div className="text-red-600 text-sm font-medium uppercase tracking-wider">Rejected</div>
+                    <div className="text-3xl font-bold text-red-600 mt-2">{stats.rejected}</div>
+                    <div className="mt-2 text-xs text-red-600 flex items-center gap-1">
+                      <XCircle size={12} />
+                      <span>Disqualified</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Charts */}
+              <AdminCharts applications={applications} />
+
+              {/* Recent Applications Preview */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                  <h3 className="font-bold text-[#1e3a5f]">Recent Applications</h3>
+                  <button
+                    onClick={() => setActiveTab('applications')}
+                    className="text-sm text-brand-teal hover:underline"
+                  >
+                    View All
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50/50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Applicant</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {applications.slice(0, 5).map(app => (
+                        <tr key={app.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-3">
+                            <div className="flex items-center">
+                              <div className="h-8 w-8 rounded-full bg-brand-blue/10 flex items-center justify-center text-brand-blue font-bold text-xs">
+                                {app.full_name.charAt(0)}
+                              </div>
+                              <div className="ml-3">
+                                <div className="text-sm font-medium text-gray-900">{app.full_name}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-3 text-sm text-gray-600">{app.position}</td>
+                          <td className="px-6 py-3">
+                            <span className={`px-2 py-0.5 inline-flex text-xs font-medium rounded-full 
+                              ${app.status === 'Shortlisted' ? 'bg-green-100 text-green-800' :
+                                app.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'}`}>
+                              {app.status || 'Pending'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            <button
+                              onClick={() => setSelectedApp(app)}
+                              className="text-gray-400 hover:text-brand-teal"
+                            >
+                              <Eye size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Applications View */}
+          {(activeTab === 'applications' || activeTab === 'analytics') && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-[calc(100vh-12rem)]">
+              {/* Filters Bar */}
+              <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between bg-white rounded-t-xl">
+                <div className="flex items-center gap-2 w-full md:w-auto flex-1">
+                  <div className="relative flex-1 md:max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Search applicants..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal/20 focus:border-brand-teal outline-none transition-all"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <select
+                      value={filterDept}
+                      onChange={(e) => setFilterDept(e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 focus:border-brand-teal outline-none"
+                    >
+                      {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 focus:border-brand-teal outline-none"
+                    >
+                      <option value="All">All Statuses</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Shortlisted">Shortlisted</option>
+                      <option value="Rejected">Rejected</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Bulk Actions */}
+                {selectedApps.length > 0 && (
+                  <div className="flex items-center gap-2 bg-brand-blue/5 px-3 py-1.5 rounded-lg animate-in fade-in slide-in-from-top-2">
+                    <span className="text-sm font-medium text-brand-blue">{selectedApps.length} selected</span>
+                    <div className="h-4 w-px bg-gray-300 mx-1"></div>
+                    <button
+                      onClick={() => handleBulkStatusUpdate('Shortlisted')}
+                      className="text-xs font-medium text-green-600 hover:bg-green-50 px-2 py-1 rounded transition-colors"
+                    >
+                      Shortlist
+                    </button>
+                    <button
+                      onClick={() => handleBulkStatusUpdate('Rejected')}
+                      className="text-xs font-medium text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
+              </div>
+
+              {/* Table */}
+              <div className="flex-1 overflow-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                    <tr>
+                      <th className="px-6 py-3 text-left">
+                        <input
+                          type="checkbox"
+                          checked={selectedApps.length === filteredApplicants.length && filteredApplicants.length > 0}
+                          onChange={toggleSelectAll}
+                          className="rounded border-gray-300 text-brand-teal focus:ring-brand-teal"
+                        />
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredApplicants.length > 0 ? (
+                      filteredApplicants.map(app => (
+                        <tr key={app.id} className={`hover:bg-gray-50 transition-colors ${selectedApps.includes(app.id) ? 'bg-blue-50/30' : ''}`}>
+                          <td className="px-6 py-4">
+                            <input
+                              type="checkbox"
+                              checked={selectedApps.includes(app.id)}
+                              onChange={() => toggleSelectApp(app.id)}
+                              className="rounded border-gray-300 text-brand-teal focus:ring-brand-teal"
+                            />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="h-10 w-10 rounded-full bg-brand-blue/10 flex items-center justify-center text-brand-blue font-bold">
+                                {app.full_name.charAt(0)}
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">{app.full_name}</div>
+                                <div className="text-sm text-gray-500">{app.email}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{app.position}</div>
+                            <div className="text-xs text-gray-500">{app.department}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                              ${app.status === 'Shortlisted' ? 'bg-green-100 text-green-800' :
+                                app.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'}`}>
+                              {app.status || 'Pending'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {new Date(app.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button
+                              onClick={() => setSelectedApp(app)}
+                              className="text-brand-teal hover:text-[#3d8568] font-medium p-2 hover:bg-teal-50 rounded-lg transition-colors"
+                              title="View Details"
+                            >
+                              <Eye size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                          <div className="flex flex-col items-center justify-center">
+                            <Search size={48} className="text-gray-200 mb-4" />
+                            <p className="text-lg font-medium text-gray-900">No applications found</p>
+                            <p className="text-sm text-gray-500">Try adjusting your search or filters</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination (Visual only for now) */}
+              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50 rounded-b-xl">
+                <span className="text-sm text-gray-500">
+                  Showing <span className="font-medium">{filteredApplicants.length}</span> results
+                </span>
+                <div className="flex gap-2">
+                  <button className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50" disabled>Previous</button>
+                  <button className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50" disabled>Next</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Settings Placeholder */}
+          {activeTab === 'settings' && (
+            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 text-center py-20">
+              <Settings size={48} className="mx-auto text-gray-300 mb-4" />
+              <h2 className="text-xl font-bold text-gray-900">Settings Coming Soon</h2>
+              <p className="text-gray-500 mt-2">Configure your admin dashboard preferences here.</p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Application Details Modal */}
       {selectedApp && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in-up">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
               <div>
                 <h2 className="text-2xl font-bold text-[#1e3a5f]">Application Details</h2>
@@ -405,37 +537,36 @@ export default function AdminPage() {
               </div>
               <button
                 onClick={() => setSelectedApp(null)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <XCircle size={24} />
               </button>
             </div>
 
-            <div className="p-8">
+            <div className="p-8 overflow-y-auto">
               {/* Status Actions */}
-              <div className="bg-gray-50 p-6 rounded-lg mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div>
-                  <span className="text-sm text-gray-500 block mb-1">Current Status</span>
-                  <span className={`px-3 py-1 inline-flex text-sm font-semibold rounded-full 
-                    ${selectedApp.status === 'Shortlisted' ? 'bg-green-100 text-green-800' :
-                      selectedApp.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'}`}>
-                    {selectedApp.status || 'Pending'}
-                  </span>
+              <div className="bg-gray-50 p-6 rounded-xl mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${selectedApp.status === 'Shortlisted' ? 'bg-green-500' :
+                    selectedApp.status === 'Rejected' ? 'bg-red-500' :
+                      'bg-yellow-500'
+                    }`}></div>
+                  <div>
+                    <span className="text-sm text-gray-500 block">Current Status</span>
+                    <span className="font-semibold text-gray-900">{selectedApp.status || 'Pending'}</span>
+                  </div>
                 </div>
                 <div className="flex gap-3">
                   <button
                     onClick={() => updateStatus(selectedApp.id, 'Pending')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedApp.status === 'Pending' || !selectedApp.status ? 'bg-gray-200 text-gray-800 cursor-default' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedApp.status === 'Pending' || !selectedApp.status ? 'bg-gray-200 text-gray-400 cursor-default' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
                     disabled={selectedApp.status === 'Pending' || !selectedApp.status}
                   >
                     Mark Pending
                   </button>
                   <button
                     onClick={() => updateStatus(selectedApp.id, 'Rejected')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedApp.status === 'Rejected' ? 'bg-red-100 text-red-800 cursor-default' : 'bg-white border border-red-200 text-red-600 hover:bg-red-50'}`}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedApp.status === 'Rejected' ? 'bg-red-100 text-red-400 cursor-default' : 'bg-white border border-red-200 text-red-600 hover:bg-red-50'}`}
                     disabled={selectedApp.status === 'Rejected'}
                   >
                     Reject
@@ -451,31 +582,61 @@ export default function AdminPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <h3 className="text-lg font-bold text-[#1e3a5f] mb-4 border-b pb-2">Personal Information</h3>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-gray-500 text-sm">Full Name:</span>
-                      <span className="col-span-2 font-medium text-gray-900">{selectedApp.full_name}</span>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-bold text-[#1e3a5f] mb-4 flex items-center gap-2">
+                      <Users size={20} />
+                      Personal Information
+                    </h3>
+                    <div className="bg-white p-4 rounded-lg border border-gray-100 space-y-3 shadow-sm">
+                      <div className="grid grid-cols-3 gap-2">
+                        <span className="text-gray-500 text-sm">Full Name:</span>
+                        <span className="col-span-2 font-medium text-gray-900">{selectedApp.full_name}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <span className="text-gray-500 text-sm">Email:</span>
+                        <span className="col-span-2 font-medium text-gray-900">{selectedApp.email}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <span className="text-gray-500 text-sm">Phone:</span>
+                        <span className="col-span-2 font-medium text-gray-900">{selectedApp.phone}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <span className="text-gray-500 text-sm">State/LGA:</span>
+                        <span className="col-span-2 font-medium text-gray-900">{selectedApp.state_of_origin} / {selectedApp.lga}</span>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-gray-500 text-sm">Email:</span>
-                      <span className="col-span-2 font-medium text-gray-900">{selectedApp.email}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-gray-500 text-sm">Phone:</span>
-                      <span className="col-span-2 font-medium text-gray-900">{selectedApp.phone}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-gray-500 text-sm">State/LGA:</span>
-                      <span className="col-span-2 font-medium text-gray-900">{selectedApp.state_of_origin} / {selectedApp.lga}</span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-bold text-[#1e3a5f] mb-4 flex items-center gap-2">
+                      <FileText size={20} />
+                      Documents
+                    </h3>
+                    <div className="bg-blue-50 rounded-lg p-5 border border-blue-100 flex items-center justify-between">
+                      <div>
+                        <h4 className="font-semibold text-[#1e3a5f]">Application PDF</h4>
+                        <p className="text-xs text-gray-600 mt-1">Combined CV, Certificates & License</p>
+                      </div>
+                      <a
+                        href={getFileUrl(selectedApp.cv_url)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 bg-white text-brand-blue px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors border border-blue-200 shadow-sm text-sm font-medium"
+                      >
+                        <Download size={16} />
+                        View PDF
+                      </a>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-bold text-[#1e3a5f] mb-4 border-b pb-2">Position & Qualification</h3>
-                  <div className="space-y-4">
+                  <h3 className="text-lg font-bold text-[#1e3a5f] mb-4 flex items-center gap-2">
+                    <CheckCircle size={20} />
+                    Qualification & Position
+                  </h3>
+                  <div className="bg-white p-4 rounded-lg border border-gray-100 space-y-3 shadow-sm">
                     <div className="grid grid-cols-3 gap-2">
                       <span className="text-gray-500 text-sm">Position:</span>
                       <span className="col-span-2 font-medium text-gray-900">{selectedApp.position}</span>
@@ -490,7 +651,11 @@ export default function AdminPage() {
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       <span className="text-gray-500 text-sm">Institution:</span>
-                      <span className="col-span-2 font-medium text-gray-900">{selectedApp.institution} ({selectedApp.year_of_graduation})</span>
+                      <span className="col-span-2 font-medium text-gray-900">{selectedApp.institution}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <span className="text-gray-500 text-sm">Graduation:</span>
+                      <span className="col-span-2 font-medium text-gray-900">{selectedApp.year_of_graduation}</span>
                     </div>
                     {selectedApp.license_number && (
                       <div className="grid grid-cols-3 gap-2">
@@ -501,33 +666,12 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
-
-              <div className="mt-8">
-                <h3 className="text-lg font-bold text-[#1e3a5f] mb-4 border-b pb-2">Application Documents</h3>
-                <div className="bg-blue-50 rounded-lg p-6 border border-blue-100 flex items-center justify-between">
-                  <div>
-                    <h4 className="font-semibold text-[#1e3a5f]">Combined Application PDF</h4>
-                    <p className="text-sm text-gray-600 mt-1">Contains Cover Letter/Resume, Certificates, License, etc.</p>
-                  </div>
-                  <a
-                    href={getFileUrl(selectedApp.cv_url)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-2 bg-brand-blue text-white px-6 py-3 rounded-lg hover:bg-[#162c46] transition-colors shadow-md"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    View Document
-                  </a>
-                </div>
-              </div>
             </div>
 
             <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-xl flex justify-end">
               <button
                 onClick={() => setSelectedApp(null)}
-                className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-100 transition-colors"
+                className="px-6 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors shadow-sm"
               >
                 Close
               </button>
@@ -536,5 +680,25 @@ export default function AdminPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function Settings({ size, className }: { size?: number, className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size || 24}
+      height={size || 24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
   );
 }

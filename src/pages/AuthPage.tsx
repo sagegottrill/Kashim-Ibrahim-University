@@ -122,16 +122,7 @@ export default function AuthPage() {
                         </p>
                     </div>
 
-                    <div className="flex gap-4 pt-4">
-                        <div className="flex items-center gap-3 text-sm font-medium bg-white/10 px-5 py-2.5 rounded-full backdrop-blur-md border border-white/10">
-                            <ShieldCheck className="w-4 h-4 text-[#4a9d7e]" />
-                            <span>Secure Portal</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-sm font-medium bg-white/10 px-5 py-2.5 rounded-full backdrop-blur-md border border-white/10">
-                            <Briefcase className="w-4 h-4 text-[#4a9d7e]" />
-                            <span>Career Growth</span>
-                        </div>
-                    </div>
+
                 </div>
 
                 {/* Decorative Circles */}
@@ -345,8 +336,8 @@ export default function AuthPage() {
                                     setPassword('');
                                 }}
                                 className={`text-sm font-medium px-4 py-2 rounded-lg transition-all duration-300 ${isAdminLogin
-                                        ? 'text-[#4a9d7e] bg-green-50 hover:bg-green-100'
-                                        : 'text-[#1e3a5f] bg-blue-50 hover:bg-blue-100'
+                                    ? 'text-[#4a9d7e] bg-green-50 hover:bg-green-100'
+                                    : 'text-[#1e3a5f] bg-blue-50 hover:bg-blue-100'
                                     }`}
                             >
                                 {isAdminLogin ? 'Switch to Applicant Login' : 'Switch to Admin Portal'}
