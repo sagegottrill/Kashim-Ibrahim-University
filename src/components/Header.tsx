@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Home, Briefcase, LayoutDashboard, Phone, ShieldCheck, Menu, X, Clock, User, LogOut } from 'lucide-react';
+import { Home, Briefcase, Phone, LayoutDashboard, Menu, X, Clock, LogOut, Shield, User, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { isAdmin } from '../config/admins';
 
 interface HeaderProps {
   currentPage: string;
@@ -200,7 +201,7 @@ export default function Header({ currentPage, onNavigate }: HeaderProps) {
                 </button>
               );
             })}
-            {user?.email === 'admin.kiuth@gmail.com' && (
+            {isAdmin(user?.email) && (
               <div className="pt-2 border-t border-gray-100 mt-2">
                 <button
                   onClick={() => {

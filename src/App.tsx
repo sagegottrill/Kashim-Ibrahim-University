@@ -11,6 +11,7 @@ import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
 import AdminPage from "./pages/AdminPage";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { isAdmin } from './config/admins';
 
 const queryClient = new QueryClient();
 
@@ -33,7 +34,7 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (loading) return <div>Loading...</div>;
 
-  if (!user || user.email !== "admin.kiuth@gmail.com") {
+  if (!user || !isAdmin(user.email)) {
     return <Navigate to="/dashboard" replace />;
   }
 
