@@ -31,8 +31,8 @@ export default function Header({ currentPage, onNavigate }: HeaderProps) {
   }, [user]);
 
   useEffect(() => {
-    // Set deadline to 6 weeks from roughly now (Nov 24, 2025) -> Jan 5, 2026
-    const targetDate = new Date('2026-01-05T00:00:00').getTime();
+    // Set deadline to 6 weeks + 1 day from Nov 29, 2025 -> Jan 11, 2026
+    const targetDate = new Date('2026-01-11T00:00:00').getTime();
 
     const interval = setInterval(() => {
       const now = new Date().getTime();
@@ -200,21 +200,23 @@ export default function Header({ currentPage, onNavigate }: HeaderProps) {
                 </button>
               );
             })}
-            <div className="pt-2 border-t border-gray-100 mt-2">
-              <button
-                onClick={() => {
-                  onNavigate('admin');
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl transition-colors duration-300 ${currentPage === 'admin'
-                  ? 'bg-brand-blue text-white shadow-md'
-                  : 'text-brand-blue font-medium hover:bg-brand-blue/5'
-                  }`}
-              >
-                <ShieldCheck className="w-5 h-5" />
-                Admin Portal
-              </button>
-            </div>
+            {user?.email === 'admin.kiuth@gmail.com' && (
+              <div className="pt-2 border-t border-gray-100 mt-2">
+                <button
+                  onClick={() => {
+                    onNavigate('admin');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`flex items-center gap-3 w-full text-left px-4 py-3 rounded-xl transition-colors duration-300 ${currentPage === 'admin'
+                    ? 'bg-brand-blue text-white shadow-md'
+                    : 'text-brand-blue font-medium hover:bg-brand-blue/5'
+                    }`}
+                >
+                  <ShieldCheck className="w-5 h-5" />
+                  Admin Portal
+                </button>
+              </div>
+            )}
           </nav>
         )}
       </div>

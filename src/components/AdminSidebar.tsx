@@ -38,8 +38,6 @@ export default function AdminSidebar({
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'applications', label: 'Applications', icon: Users },
-        { id: 'analytics', label: 'Analytics', icon: FileText },
-        { id: 'settings', label: 'Settings', icon: Settings },
     ];
 
     const toggleCollapse = () => {

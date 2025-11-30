@@ -27,6 +27,19 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+// Admin Route Component
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) return <div>Loading...</div>;
+
+  if (!user || user.email !== "admin.kiuth@gmail.com") {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 const App = () => (
   <ThemeProvider defaultTheme="light">
     <QueryClientProvider client={queryClient}>
@@ -57,9 +70,9 @@ const App = () => (
               <Route
                 path="/admin"
                 element={
-                  <ProtectedRoute>
+                  <AdminRoute>
                     <AdminPage />
-                  </ProtectedRoute>
+                  </AdminRoute>
                 }
               />
               <Route path="*" element={<NotFound />} />

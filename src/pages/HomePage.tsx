@@ -27,6 +27,7 @@ export default function HomePage({ onNavigate }: HomePageProps) {
                 Excellence in Healthcare, Education, and Research.
               </p>
             </div>
+
             <div className="pt-4 flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={() => onNavigate('jobs')}

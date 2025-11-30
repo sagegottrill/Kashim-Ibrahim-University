@@ -158,6 +158,10 @@ export default function JobsPage({ onNavigate }: JobsPageProps) {
               <div className="mt-4 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
                 <p className="text-sm text-yellow-800">
                   <strong>Important:</strong> All documents must be merged into one PDF file before uploading.
+                  <br />
+                  <span className="block mt-2 font-medium">
+                    Please compress your PDF file before uploading to ensure faster submission. You can use <a href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer" className="underline text-yellow-900 hover:text-yellow-700">iLovePDF</a> or any other tool.
+                  </span>
                 </p>
               </div>
             </div>

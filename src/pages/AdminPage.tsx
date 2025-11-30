@@ -17,6 +17,7 @@ import {
   FileText,
   Users
 } from 'lucide-react';
+import { generateSlip } from '../utils/generateSlip';
 
 interface Application {
   id: string;
@@ -37,6 +38,7 @@ interface Application {
   institution: string;
   year_of_graduation: string;
   license_number: string;
+  date_of_birth: string;
 }
 
 export default function AdminPage() {
@@ -53,23 +55,41 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [selectedApps, setSelectedApps] = useState<string[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
       fetchApplications();
+
+      // Real-time subscription
+      const subscription = supabase
+        .channel('applications_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => {
+          fetchApplications();
+        })
+        .subscribe();
+
+      return () => {
+        subscription.unsubscribe();
+      };
     }
   }, [user]);
 
   const fetchApplications = async () => {
     try {
+      if (!user?.email) return;
+
+      // console.log('Fetching all applications for admin:', user.email);
+
+      // Use RPC to bypass RLS for Firebase users (who are 'anon' to Supabase)
       const { data, error } = await supabase
-        .from('applications')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .rpc('get_all_applications_for_admin', { admin_email: user.email });
 
       if (error) throw error;
 
       const apps = data || [];
+      // console.log('Fetched applications:', apps.length);
       setApplications(apps);
       calculateStats(apps);
       setLoading(false);
@@ -90,6 +110,7 @@ export default function AdminPage() {
   };
 
   const updateStatus = async (id: string, newStatus: string) => {
+    setUpdatingStatusId(id);
     try {
       const { error } = await supabase
         .from('applications')
@@ -110,6 +131,8 @@ export default function AdminPage() {
     } catch (error) {
       console.error('Error updating status:', error);
       alert('Failed to update status');
+    } finally {
+      setUpdatingStatusId(null);
     }
   };
 
@@ -140,11 +163,14 @@ export default function AdminPage() {
 
   const getFileUrl = (path: string) => {
     if (!path) return '#';
-    const { data } = supabase.storage.from('job_documents').getPublicUrl(path);
-    return data.publicUrl;
+    return path;
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
+    setIsExporting(true);
+    // Simulate a small delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 800));
+
     const headers = ['Reference', 'Full Name', 'Email', 'Phone', 'Position', 'Department', 'Status', 'Date Applied'];
     const csvContent = [
       headers.join(','),
@@ -169,6 +195,7 @@ export default function AdminPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setIsExporting(false);
   };
 
   const filteredApplicants = applications.filter(app => {
@@ -237,7 +264,7 @@ export default function AdminPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
               >
                 <Download size={18} />
-                <span className="hidden sm:inline">Export CSV</span>
+                <span className="hidden sm:inline">{isExporting ? 'Exporting...' : 'Export CSV'}</span>
               </button>
             </div>
           </div>
@@ -359,7 +386,7 @@ export default function AdminPage() {
           )}
 
           {/* Applications View */}
-          {(activeTab === 'applications' || activeTab === 'analytics') && (
+          {activeTab === 'applications' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-[calc(100vh-12rem)]">
               {/* Filters Bar */}
               <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between bg-white rounded-t-xl">
@@ -514,15 +541,6 @@ export default function AdminPage() {
               </div>
             </div>
           )}
-
-          {/* Settings Placeholder */}
-          {activeTab === 'settings' && (
-            <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 text-center py-20">
-              <Settings size={48} className="mx-auto text-gray-300 mb-4" />
-              <h2 className="text-xl font-bold text-gray-900">Settings Coming Soon</h2>
-              <p className="text-gray-500 mt-2">Configure your admin dashboard preferences here.</p>
-            </div>
-          )}
         </div>
       </div>
 
@@ -576,7 +594,7 @@ export default function AdminPage() {
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedApp.status === 'Shortlisted' ? 'bg-green-100 text-green-800 cursor-default' : 'bg-brand-teal text-white hover:bg-[#3d8568] shadow-sm'}`}
                     disabled={selectedApp.status === 'Shortlisted'}
                   >
-                    Shortlist Application
+                    {updatingStatusId === selectedApp.id ? 'Updating...' : 'Shortlist Application'}
                   </button>
                 </div>
               </div>
@@ -627,6 +645,16 @@ export default function AdminPage() {
                         <Download size={16} />
                         View PDF
                       </a>
+                      <button
+                        onClick={() => generateSlip({
+                          ...selectedApp,
+                          passport_url: selectedApp.photo_url
+                        })}
+                        className="flex items-center gap-2 bg-brand-teal text-white px-4 py-2 rounded-lg hover:bg-[#3d8568] transition-colors shadow-sm text-sm font-medium"
+                      >
+                        <FileText size={16} />
+                        Slip
+                      </button>
                     </div>
                   </div>
                 </div>

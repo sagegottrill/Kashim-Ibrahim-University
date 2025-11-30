@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
+import imageCompression from 'browser-image-compression';
 import { useAuth } from '../contexts/AuthContext';
 import ProgressStepper from '../components/ProgressStepper';
 import FileUpload from '../components/FileUpload';
 import { supabase } from '../lib/supabase';
 import { Job } from '../types';
 import { generateSlip } from '../utils/generateSlip';
+import { sendSMS } from '../utils/sms';
+import { sendEmail } from '../utils/email';
 
 const nigerianStates = [
   "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", "Cross River", "Delta",
@@ -17,7 +20,9 @@ export default function ApplyPage() {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
-  const [refNumber] = useState(`KIUTH-2025-${Math.floor(1000 + Math.random() * 9000)}`);
+  const [refNumber, setRefNumber] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [jobsList, setJobsList] = useState<Job[]>([]);
 
@@ -42,6 +47,9 @@ export default function ApplyPage() {
     passport: null as File | null,
     ndpr_consent: false
   });
+
+  const [uploadProgress, setUploadProgress] = useState({ cv: 0, passport: 0 });
+  const [uploadedUrls, setUploadedUrls] = useState({ cv: '', passport: '' });
 
   useEffect(() => {
     const fetchJobs = async () => {
@@ -106,10 +114,79 @@ export default function ApplyPage() {
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
+  const handleFileUpload = async (file: File, type: 'cv' | 'passport') => {
+    if (!file) return;
+
+    // Set file in form data for validation
+    setFormData(prev => ({ ...prev, [type]: file }));
+
+    // Reset progress
+    setUploadProgress(prev => ({ ...prev, [type]: 1 }));
+
+    let fileToUpload = file;
+
+    // Compress image if it's a passport
+    if (type === 'passport' && file.type.startsWith('image/')) {
+      try {
+        const options = {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1024,
+          useWebWorker: true
+        };
+        fileToUpload = await imageCompression(file, options);
+      } catch (error) {
+        console.error('Image compression failed:', error);
+        // Continue with original file if compression fails
+      }
+    }
+
+    const uploadUrl = import.meta.env.VITE_UPLOAD_URL || '/upload.php';
+    const formData = new FormData();
+    formData.append('file', fileToUpload);
+
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', uploadUrl, true);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress(prev => ({ ...prev, [type]: percentComplete }));
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const data = JSON.parse(xhr.responseText);
+          if (data.success) {
+            setUploadedUrls(prev => ({ ...prev, [type]: data.url }));
+            setUploadProgress(prev => ({ ...prev, [type]: 100 }));
+          } else {
+            alert('Upload failed: ' + data.message);
+            setUploadProgress(prev => ({ ...prev, [type]: 0 }));
+          }
+        } else {
+          alert('Upload failed with status: ' + xhr.status);
+          setUploadProgress(prev => ({ ...prev, [type]: 0 }));
+        }
+      };
+
+      xhr.onerror = () => {
+        alert('Upload failed due to network error');
+        setUploadProgress(prev => ({ ...prev, [type]: 0 }));
+      };
+
+      xhr.send(formData);
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadProgress(prev => ({ ...prev, [type]: 0 }));
+    }
+  };
+
   const validateStep = (step: number) => {
     switch (step) {
       case 1: // Personal Info
-        return (
+        if (
           formData.full_name &&
           formData.email &&
           formData.phone &&
@@ -117,9 +194,17 @@ export default function ApplyPage() {
           formData.state_of_origin &&
           formData.lga &&
           formData.nin_number &&
+          /^\d{11}$/.test(formData.nin_number) &&
           formData.address &&
           formData.passport
-        );
+        ) {
+          return true;
+        }
+
+        if (formData.nin_number && !/^\d{11}$/.test(formData.nin_number)) {
+          alert('NIN Number must be exactly 11 digits');
+        }
+        return false;
       case 2: // Position Details
         if (!formData.position) {
           alert('Please select a position');
@@ -137,6 +222,15 @@ export default function ApplyPage() {
           alert('Please upload your combined documents PDF and accept NDPR consent');
           return false;
         }
+        // Check if uploads are complete
+        if (!uploadedUrls.cv) {
+          alert('Please wait for the document upload to complete');
+          return false;
+        }
+        if (!uploadedUrls.passport) {
+          alert('Please wait for the passport upload to complete');
+          return false;
+        }
         return true;
       default:
         return true;
@@ -144,53 +238,23 @@ export default function ApplyPage() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) {
+      return;
+    }
+    setIsSubmitting(true);
     try {
       setSubmitted(false); // Reset submitted state if retrying
 
-      // 1. Upload Combined Documents PDF and Passport
-      const uploadFile = async (file: File, folder: string, name: string) => {
-        // We use the PHP script for uploads
-        // In development, we might need to point to the live server if we don't have local PHP.
-        // For now, we assume the user will build and deploy, so relative path '/upload.php' works.
-        // Or we can use an env var. Let's use a relative path which works if the React app is served from the same domain.
-        // If testing locally against a live server, user needs to set VITE_UPLOAD_URL.
-        const uploadUrl = import.meta.env.VITE_UPLOAD_URL || '/upload.php';
+      // Generate a fresh, unique Reference Number for this specific attempt
+      // Format: KIUTH-2025-[TimestampLast6]-[Random2]
+      const uniqueRef = `KIUTH-2025-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 90)}`;
 
-        const formData = new FormData();
-        formData.append('file', file);
+      // 1. Use already uploaded URLs
+      const combinedDocsPath = uploadedUrls.cv;
+      const passportPath = uploadedUrls.passport;
 
-        try {
-          const response = await fetch(uploadUrl, {
-            method: 'POST',
-            body: formData,
-          });
-
-          if (!response.ok) {
-            throw new Error(`Upload failed with status: ${response.status}`);
-          }
-
-          const data = await response.json();
-
-          if (!data.success) {
-            throw new Error(data.message || 'Upload failed');
-          }
-
-          return data.url;
-        } catch (error) {
-          console.error('Upload error:', error);
-          throw error;
-        }
-      };
-
-      const folderName = `${refNumber}`;
-      let combinedDocsPath = null;
-      let passportPath = null;
-
-      if (formData.cv) {
-        combinedDocsPath = await uploadFile(formData.cv, folderName, 'combined_documents');
-      }
-      if (formData.passport) {
-        passportPath = await uploadFile(formData.passport, folderName, 'passport_photo');
+      if (!combinedDocsPath || !passportPath) {
+        throw new Error("Files not uploaded correctly. Please try uploading again.");
       }
 
       // 2. Insert Application Data
@@ -199,28 +263,72 @@ export default function ApplyPage() {
         .insert([
           {
             full_name: formData.full_name,
-            email: formData.email,
+            email: formData.email.toLowerCase(), // Ensure email is lowercase for matching
             phone: formData.phone,
             date_of_birth: formData.date_of_birth,
             state_of_origin: formData.state_of_origin,
             lga: formData.lga,
             nin_number: formData.nin_number,
-            address: formData.address,
+            // address: formData.address, // Removed as it causes 400 error (column missing)
             position: formData.position,
             department: formData.department,
             specialty: formData.specialty,
             qualification: formData.qualification,
-            year_of_graduation: formData.year_of_graduation,
+            year_of_graduation: parseInt(formData.year_of_graduation) || null,
             license_number: formData.license_number,
             institution: formData.institution,
-            reference_number: refNumber,
+            reference_number: uniqueRef, // Use the fresh uniqueRef
             cv_url: combinedDocsPath,
             photo_url: passportPath,
-            other_documents: [] // No longer needed
+            // other_documents: [] // Removing this as it might cause type issues if column is not array
           }
         ]);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        throw insertError;
+      }
+
+      try {
+        await sendSMS(
+          formData.phone,
+          `Dear ${formData.full_name}, your application for ${formData.position} at KIUTH has been received. Ref: ${uniqueRef}. Keep this safe.`
+        );
+      } catch (smsError) {
+        console.error("Failed to send SMS:", smsError);
+      }
+
+      // 4. Send Email Confirmation (No Attachment)
+      sendEmail(
+        formData.email,
+        "Application Received - KIUTH Recruitment",
+        `
+            <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #1e3a5f; border-bottom: 2px solid #4a9d7e; padding-bottom: 10px;">Application Received</h2>
+              <p>Dear <strong>${formData.full_name}</strong>,</p>
+              <p>Thank you for applying for the position of <strong>${formData.position}</strong> at Kashim Ibrahim University Teaching Hospital.</p>
+              <p>Your application has been successfully submitted and is currently under review.</p>
+              
+              <div style="background-color: #f0f9ff; border-left: 4px solid #1e3a5f; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; font-size: 14px; color: #555;">Your Reference Number:</p>
+                <p style="margin: 5px 0 0 0; font-size: 24px; font-weight: bold; color: #4a9d7e;">${uniqueRef}</p>
+              </div>
+
+              <p><strong>Important Next Step:</strong></p>
+              <p>Please login to your applicant dashboard to download your <strong>Application Slip</strong>. You will need to present a printed copy of this slip at the interview venue.</p>
+              
+              <p style="text-align: center; margin-top: 30px; margin-bottom: 30px;">
+                <a href="${window.location.origin}/dashboard" style="background-color: #1e3a5f; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Go to Dashboard</a>
+              </p>
+              
+              <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+              <p style="font-size: 12px; color: #888;">If the button above doesn't work, copy and paste this link into your browser:<br>${window.location.origin}/dashboard</p>
+              <br>
+              <p>Best Regards,<br>KIUTH Recruitment Team</p>
+            </div>
+          `
+      )
+        .then(() => { /* Email sent */ })
+        .catch((emailError) => console.error("Failed to send email:", emailError));
 
       setSubmitted(true);
       // Clear localStorage after successful submission
@@ -228,12 +336,10 @@ export default function ApplyPage() {
     } catch (error) {
       console.error('Error submitting application:', error);
       alert('There was an error submitting your application. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
-
-
-  // ... (inside the component)
 
   if (submitted) {
     // Auto-generate slip on first render of success screen
@@ -248,7 +354,13 @@ export default function ApplyPage() {
             </svg>
           </div>
           <h2 className="text-3xl font-bold text-[#1e3a5f] mb-4">Application Submitted!</h2>
-          <p className="text-gray-600 mb-6">Your application has been successfully submitted.</p>
+          <p className="text-gray-600 mb-2">Your application has been successfully submitted.</p>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6 max-w-md mx-auto">
+            <p className="text-sm text-yellow-800 flex items-center justify-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              Please check your email inbox and <strong>spam/junk folder</strong> for the confirmation message.
+            </p>
+          </div>
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <p className="text-sm text-gray-600 mb-2">Your Reference Number:</p>
             <p className="text-2xl font-bold text-[#4a9d7e]">{refNumber}</p>
@@ -265,7 +377,8 @@ export default function ApplyPage() {
                 position: formData.position,
                 department: formData.department,
                 date_of_birth: formData.date_of_birth,
-                state_of_origin: formData.state_of_origin
+                state_of_origin: formData.state_of_origin,
+                passportFile: formData.passport
               })}
               className="px-6 py-3 bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162c4b] flex items-center justify-center mx-auto gap-2"
             >
@@ -339,8 +452,14 @@ export default function ApplyPage() {
                   required
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e] focus:border-transparent"
                   value={formData.nin_number}
-                  onChange={(e) => setFormData({ ...formData, nin_number: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                    setFormData({ ...formData, nin_number: val });
+                  }}
+                  maxLength={11}
+                  placeholder="11 digits"
                 />
+                <p className="text-xs text-gray-500 mt-1">Must be exactly 11 digits</p>
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Residential Address</label>
@@ -384,6 +503,54 @@ export default function ApplyPage() {
                   label="Upload Passport"
                   onChange={(file) => setFormData({ ...formData, passport: file })}
                 />
+
+                {/* Manual Upload Button for Passport */}
+                {formData.passport && !uploadedUrls.passport && (
+                  <button
+                    onClick={() => handleFileUpload(formData.passport!, 'passport')}
+                    disabled={uploadProgress.passport > 0 && uploadProgress.passport < 100}
+                    className={`mt-3 px-4 py-2 bg-[#1e3a5f] text-white text-sm rounded-md hover:bg-[#162c4b] transition-colors flex items-center gap-2 ${uploadProgress.passport > 0 && uploadProgress.passport < 100 ? 'opacity-70 cursor-not-allowed' : ''
+                      }`}
+                  >
+                    {uploadProgress.passport > 0 && uploadProgress.passport < 100 ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                        Upload Passport
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* Progress Bar for Passport */}
+                {uploadProgress.passport > 0 && uploadProgress.passport < 100 && (
+                  <div className="mt-3">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs text-gray-600">Uploading...</span>
+                      <span className="text-xs font-semibold text-brand-teal">{uploadProgress.passport}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-brand-teal h-2 rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${uploadProgress.passport}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
+                {uploadedUrls.passport && (
+                  <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    Passport uploaded successfully
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -426,6 +593,14 @@ export default function ApplyPage() {
                     <li key={idx}>{req}</li>
                   ))}
                 </ul>
+                <div className="mt-4 pt-3 border-t border-blue-200">
+                  <p className="text-sm text-blue-800 flex items-start gap-2">
+                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span>
+                      <strong>Tip:</strong> If you have many documents, please <a href="https://www.ilovepdf.com/compress_pdf" target="_blank" rel="noopener noreferrer" className="underline font-semibold hover:text-blue-900">compress your merged PDF</a> before uploading in the next step.
+                    </span>
+                  </p>
+                </div>
               </div>
             )}
 
@@ -467,10 +642,13 @@ export default function ApplyPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Year of Graduation</label>
                 <input
-                  type="text"
+                  type="number"
                   value={formData.year_of_graduation}
                   onChange={(e) => setFormData({ ...formData, year_of_graduation: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4a9d7e]"
+                  placeholder="YYYY"
+                  min="1950"
+                  max="2030"
                 />
               </div>
               <div>
@@ -526,11 +704,84 @@ export default function ApplyPage() {
               </div>
             )}
 
-            <FileUpload
-              label="Combined Documents (All documents in ONE PDF) *"
-              accept=".pdf"
-              onChange={(file) => setFormData({ ...formData, cv: file })}
-            />
+            {/* PDF Compression Helper */}
+            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <h4 className="font-semibold text-yellow-800 flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  File too large?
+                </h4>
+                <p className="text-sm text-yellow-700 mt-1">
+                  If your merged PDF is very large, it might take a long time to upload. We recommend compressing it first.
+                </p>
+              </div>
+              <a
+                href="https://www.ilovepdf.com/compress_pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="whitespace-nowrap px-4 py-2 bg-white border border-yellow-300 text-yellow-800 rounded-lg hover:bg-yellow-100 transition-colors text-sm font-medium flex items-center gap-2"
+              >
+                Compress PDF Online
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+              </a>
+            </div>
+
+            {/* CV Upload */}
+            <div>
+              <FileUpload
+                label="Combined Documents (All documents in ONE PDF) *"
+                accept=".pdf"
+                onChange={(file) => setFormData({ ...formData, cv: file })}
+              />
+
+              {/* Manual Upload Button for CV */}
+              {formData.cv && !uploadedUrls.cv && (
+                <button
+                  onClick={() => handleFileUpload(formData.cv!, 'cv')}
+                  disabled={uploadProgress.cv > 0 && uploadProgress.cv < 100}
+                  className={`mt-3 px-4 py-2 bg-[#1e3a5f] text-white text-sm rounded-md hover:bg-[#162c4b] transition-colors flex items-center gap-2 ${uploadProgress.cv > 0 && uploadProgress.cv < 100 ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
+                >
+                  {uploadProgress.cv > 0 && uploadProgress.cv < 100 ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                      Upload Document
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Progress Bar for CV/PDF */}
+              {uploadProgress.cv > 0 && uploadProgress.cv < 100 && (
+                <div className="mt-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-gray-600">Uploading document...</span>
+                    <span className="text-xs font-semibold text-brand-teal">{uploadProgress.cv}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-brand-teal to-green-500 h-2.5 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${uploadProgress.cv}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              {uploadedUrls.cv && (
+                <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  Document uploaded successfully
+                </p>
+              )}
+            </div>
 
             <div className="mt-6">
               <label className="flex items-start gap-3 cursor-pointer">
@@ -594,9 +845,20 @@ export default function ApplyPage() {
           ) : (
             <button
               onClick={handleSubmit}
-              className="px-6 py-2 bg-[#4a9d7e] text-white rounded-lg hover:bg-[#3d8568]"
+              disabled={isSubmitting}
+              className={`px-6 py-2 bg-[#4a9d7e] text-white rounded-lg hover:bg-[#3d8568] flex items-center gap-2 ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
-              Submit Application
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Submitting...
+                </>
+              ) : (
+                'Submit Application'
+              )}
             </button>
           )}
         </div>
