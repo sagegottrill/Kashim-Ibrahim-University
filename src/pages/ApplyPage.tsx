@@ -355,8 +355,8 @@ export default function ApplyPage() {
           </div>
           <h2 className="text-3xl font-bold text-[#1e3a5f] mb-4">Application Submitted!</h2>
           <p className="text-gray-600 mb-2">Your application has been successfully submitted.</p>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6 max-w-md mx-auto">
-            <p className="text-sm text-yellow-800 flex items-center justify-center gap-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6 max-w-md mx-auto">
+            <p className="text-sm text-brand-blue flex items-center justify-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               Please check your email inbox and <strong>spam/junk folder</strong> for the confirmation message.
             </p>
@@ -696,8 +696,8 @@ export default function ApplyPage() {
                   ))}
                   <li>Computer Proficiency Certificate (any computer-related certification)</li>
                 </ul>
-                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
-                  <p className="text-sm text-yellow-800">
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm text-brand-blue">
                     <strong>Important:</strong> All documents must be merged into one PDF file. Separate uploads will not be accepted.
                   </p>
                 </div>
@@ -705,13 +705,13 @@ export default function ApplyPage() {
             )}
 
             {/* PDF Compression Helper */}
-            <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div>
-                <h4 className="font-semibold text-yellow-800 flex items-center gap-2">
+                <h4 className="font-semibold text-brand-blue flex items-center gap-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   File too large?
                 </h4>
-                <p className="text-sm text-yellow-700 mt-1">
+                <p className="text-sm text-brand-blue/80 mt-1">
                   If your merged PDF is very large, it might take a long time to upload. We recommend compressing it first.
                 </p>
               </div>
@@ -719,7 +719,7 @@ export default function ApplyPage() {
                 href="https://www.ilovepdf.com/compress_pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="whitespace-nowrap px-4 py-2 bg-white border border-yellow-300 text-yellow-800 rounded-lg hover:bg-yellow-100 transition-colors text-sm font-medium flex items-center gap-2"
+                className="whitespace-nowrap px-4 py-2 bg-white border border-blue-300 text-brand-blue rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium flex items-center gap-2"
               >
                 Compress PDF Online
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>

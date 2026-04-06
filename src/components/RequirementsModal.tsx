@@ -52,8 +52,8 @@ export default function RequirementsModal({ job, isOpen, onClose, onProceed }: R
                             ))}
                             <li>Computer Proficiency Certificate (any computer-related certification)</li>
                         </ul>
-                        <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
-                            <p className="text-xs text-yellow-800">
+                        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                            <p className="text-xs text-brand-blue">
                                 <strong>Important:</strong> All documents must be merged into one PDF file before uploading.
                             </p>
                         </div>

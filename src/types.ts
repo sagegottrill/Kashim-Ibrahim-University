@@ -18,13 +18,25 @@ export interface Application {
     full_name: string;
     email: string;
     phone: string;
-    job_id: string;
-    status: 'Pending' | 'Reviewed' | 'Shortlisted' | 'Rejected';
-    resume_url: string;
+    job_id?: string;
+    position: string;
+    department: string;
+    status: 'Pending' | 'Reviewed' | 'Shortlisted' | 'Rejected' | string;
+    resume_url?: string;
+    cv_url: string;
     cover_letter_url?: string;
     photo_url: string;
-    documents: Record<string, string>;
+    documents?: Record<string, string>;
+    other_documents?: { name: string; path: string }[];
     reference_number: string;
+    nin_number?: string;
+    date_of_birth: string;
+    state_of_origin: string;
+    lga: string;
+    qualification: string;
+    institution: string;
+    year_of_graduation: string;
+    license_number: string;
 }
 
 export interface ContactMessage {

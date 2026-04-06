@@ -77,17 +77,7 @@ export const applicantsData: Applicant[] = [
     status: 'Interview',
     appliedDate: '2024-11-20'
   },
-  {
-    id: 'APP007',
-    refNumber: 'KIUTH-2024-007',
-    name: 'Aisha Suleiman',
-    email: 'aisha.suleiman@email.com',
-    phone: '08078901234',
-    position: 'Human Resources Officer',
-    department: 'Administration',
-    status: 'Submitted',
-    appliedDate: '2024-11-21'
-  },
+
   {
     id: 'APP008',
     refNumber: 'KIUTH-2024-008',

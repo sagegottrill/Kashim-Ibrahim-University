@@ -8,7 +8,10 @@ import {
     ChevronLeft,
     ChevronRight,
     Menu,
-    X
+    X,
+    PieChart,
+    ShieldCheck,
+    Printer
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -38,6 +41,9 @@ export default function AdminSidebar({
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'applications', label: 'Applications', icon: Users },
+        { id: 'analytics', label: 'Analytics', icon: PieChart },
+        { id: 'hr-screening', label: 'Smart HR', icon: ShieldCheck },
+        { id: 'slip-generator', label: 'Slip Generator', icon: Printer },
     ];
 
     const toggleCollapse = () => {

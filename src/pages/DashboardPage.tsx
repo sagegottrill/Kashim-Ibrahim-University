@@ -9,6 +9,18 @@ import { generateSlip } from '../utils/generateSlip';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
+const calculateAge = (dob: string | undefined): number | string => {
+  if (!dob) return 'N/A';
+  const birthDate = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+  }
+  return age;
+};
+
 export default function DashboardPage() {
   const { user, logout } = useAuth();
   const [application, setApplication] = useState<any>(null);
@@ -108,6 +120,12 @@ export default function DashboardPage() {
                     <p className="text-sm text-gray-500">Date Applied</p>
                     <p className="font-medium text-lg">
                       {new Date(application.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Age</p>
+                    <p className="font-medium text-lg">
+                      {application.date_of_birth ? `${calculateAge(application.date_of_birth)} years` : 'N/A'}
                     </p>
                   </div>
                 </div>

@@ -26,7 +26,6 @@ export default function FilterPanel({
     'Radiology',
     'Pharmacy',
     'Basic Medical Sciences',
-    'Administration',
     'Finance',
     'Information Technology',
     'Physiotherapy',
@@ -38,7 +37,7 @@ export default function FilterPanel({
   return (
     <div className="bg-white rounded-lg shadow-md p-6 sticky top-24">
       <h3 className="text-lg font-semibold text-[#1e3a5f] mb-4">Filter Jobs</h3>
-      
+
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Keyword</label>

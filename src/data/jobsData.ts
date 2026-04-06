@@ -64,7 +64,7 @@ export const jobsData: Job[] = [
     type: 'Clinical',
     description: 'Provide physical therapy and rehabilitation services.',
     requirements: [
-      'Recognized degree (B.Sc.) in Physiotherapy, Prosthetics/Orthotics, or Human Anatomy',
+      'Recognized degree (B.Sc.) in Physiotherapy or Bachelor of Medical Rehabilitation (BMR) from a recognized institution',
       'Valid Practicing license',
       'Completion of NYSC'
     ],
@@ -116,7 +116,53 @@ export const jobsData: Job[] = [
     licenseLabel: 'NMCN Registration Number'
   },
   {
-    id: 'JOB-HIM-008',
+    id: 'JOB-SNO-007',
+    title: 'Senior Nursing Officer (CONHESS 09)',
+    department: 'Nursing Services',
+    location: 'Maiduguri',
+    type: 'Clinical',
+    description: 'Provide advanced nursing care and supervision.',
+    requirements: [
+      'First degree in Nursing Sciences (BNSc) from a recognized institution',
+      'Registered with Nursing and Midwifery Council of Nigeria',
+      'Valid practicing license',
+      'NYSC certificate or exemption letter'
+    ],
+    requiredDocuments: ['BNSc Degree Certificate', 'NMCN Registration', 'Current Practicing License', 'NYSC Discharge/Exemption Certificate'],
+    licenseLabel: 'NMCN Registration Number'
+  },
+  {
+    id: 'JOB-NO1-008',
+    title: 'Nursing Officer I (CONHESS 08)',
+    department: 'Nursing Services',
+    location: 'Maiduguri',
+    type: 'Clinical',
+    description: 'Provide nursing care and patient management.',
+    requirements: [
+      'Registered Nurse Certificate (RN/RM)',
+      'Post Basic Nursing Qualification',
+      'Registration with Nursing and Midwifery Council of Nigeria',
+      'Valid practicing license'
+    ],
+    requiredDocuments: ['RN/RM Certificate', 'Post Basic Certificate', 'NMCN Registration', 'Current Practicing License'],
+    licenseLabel: 'NMCN Registration Number'
+  },
+  {
+    id: 'JOB-NO2-009',
+    title: 'Nursing Officer II (CONHESS 06)',
+    department: 'Nursing Services',
+    location: 'Maiduguri',
+    type: 'Clinical',
+    description: 'Provide basic nursing care to patients.',
+    requirements: [
+      'Registered Nurse (RN) or Registered Midwife (RM) Certificate',
+      'Registration with Nursing and Midwifery Council of Nigeria'
+    ],
+    requiredDocuments: ['RN/RM Certificate', 'NMCN Registration', 'Current Practicing License'],
+    licenseLabel: 'NMCN Registration Number'
+  },
+  {
+    id: 'JOB-HIM-010',
     title: 'Health Information Management Officer (CONHESS 06)',
     department: 'Health Records',
     location: 'Maiduguri',
@@ -126,13 +172,13 @@ export const jobsData: Job[] = [
       'National Diploma (ND) in Health Information Management',
       'Registration with the HRORBN',
       'Valid practicing license',
-      'Computer proficiency'
+      'Computer proficiency (Added Advantage)'
     ],
     requiredDocuments: ['HIM National Diploma', 'HRORBN Registration', 'Current Practicing License'],
     licenseLabel: 'HRORBN Registration Number'
   },
   {
-    id: 'JOB-EHO-009',
+    id: 'JOB-EHO-011',
     title: 'Environmental Health Officer (CONHESS 06)',
     department: 'Environmental Health',
     location: 'Maiduguri',

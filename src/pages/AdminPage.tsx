@@ -4,42 +4,53 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminCharts from '../components/AdminCharts';
+import AdvancedAnalytics from '../components/AdvancedAnalytics';
+import ExportModal from '../components/ExportModal';
+import BulkExportModal from '../components/BulkExportModal';
+import SmartHR from '../components/SmartHR';
+import SlipGenerator from '../components/SlipGenerator';
 import {
+  Users,
   Search,
   Filter,
-  Download,
-  MoreHorizontal,
+  ChevronDown,
+  MoreVertical,
   CheckCircle,
   XCircle,
-  Clock,
   Eye,
-  ChevronDown,
+  Trash2,
+  Menu,
+  X,
+  Printer,
   FileText,
-  Users
+  Briefcase,
+  Building,
+  GraduationCap,
+  Phone,
+  Mail,
+  Calendar,
+  MapPin,
+  Download,
+  FolderDown,
+  ShieldCheck,
+  Clock,
+  Printer,
+  ExternalLink
 } from 'lucide-react';
 import { generateSlip } from '../utils/generateSlip';
+import type { Application } from '../types';
 
-interface Application {
-  id: string;
-  created_at: string;
-  full_name: string;
-  email: string;
-  phone: string;
-  position: string;
-  department: string;
-  status: string;
-  cv_url: string;
-  photo_url: string;
-  other_documents: { name: string; path: string }[];
-  reference_number: string;
-  state_of_origin: string;
-  lga: string;
-  qualification: string;
-  institution: string;
-  year_of_graduation: string;
-  license_number: string;
-  date_of_birth: string;
-}
+const calculateAge = (dob: string | undefined): number | string => {
+  if (!dob) return 'N/A';
+  const birthDate = new Date(dob);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+  }
+  return age;
+};
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -55,7 +66,8 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [selectedApps, setSelectedApps] = useState<string[]>([]);
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isBulkExportModalOpen, setIsBulkExportModalOpen] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -80,18 +92,90 @@ export default function AdminPage() {
     try {
       if (!user?.email) return;
 
-      // console.log('Fetching all applications for admin:', user.email);
+      let allApps: Application[] = [];
+      let from = 0;
+      const step = 1000;
+      let moreAvailable = true;
 
-      // Use RPC to bypass RLS for Firebase users (who are 'anon' to Supabase)
-      const { data, error } = await supabase
-        .rpc('get_all_applications_for_admin', { admin_email: user.email });
+      while (moreAvailable) {
+        const { data, error } = await supabase
+          .rpc('get_all_applications_for_admin', { admin_email: user.email })
+          .range(from, from + step - 1);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      const apps = data || [];
-      // console.log('Fetched applications:', apps.length);
-      setApplications(apps);
-      calculateStats(apps);
+        const chunk = data || [];
+        allApps = [...allApps, ...chunk];
+
+        if (chunk.length < step) {
+          moreAvailable = false;
+        } else {
+          from += step;
+        }
+      }
+
+      // Normalize Positions (Merge Duplicates)
+      allApps = allApps.map(app => {
+        let pos = app.position;
+        if (pos === 'Senior_Nursing_Officer' || pos === 'Senior_Nursing_Officer__CONHESS_09_') {
+          pos = 'Senior_Nursing_Officer__CONHESS_09';
+        }
+        return { ...app, position: pos };
+      });
+
+      // --- SMART DEDUPLICATION ---
+      const deduplicateApplications = (apps: Application[]) => {
+        const groups: Record<string, Application[]> = {};
+
+        apps.forEach(app => {
+          // Create a unique key for Email + Position
+          // Normalized to lower case to avoid case-sensitive dupes
+          const key = `${app.email.toLowerCase().trim()}_${app.position}`;
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(app);
+        });
+
+        const cleaned: Application[] = [];
+
+        Object.values(groups).forEach(group => {
+          if (group.length === 1) {
+            cleaned.push(group[0]);
+          } else {
+            // Sort to find the "Best" candidate
+            group.sort((a, b) => {
+              // 1. Priority: Status (Shortlisted/Reviewed > Pending)
+              const getStatusScore = (s: string) => {
+                if (s === 'Shortlisted') return 3;
+                if (s === 'Reviewed') return 2;
+                if (s === 'Rejected') return 1; // Even rejected is "processed"
+                return 0; // Pending
+              };
+              const scoreA = getStatusScore(a.status);
+              const scoreB = getStatusScore(b.status);
+              if (scoreA !== scoreB) return scoreB - scoreA; // Higher score first
+
+              // 2. Priority: Has CV
+              const hasCvA = a.cv_url ? 1 : 0;
+              const hasCvB = b.cv_url ? 1 : 0;
+              if (hasCvA !== hasCvB) return hasCvB - hasCvA; // Has CV first
+
+              // 3. Priority: Recency (Newest First)
+              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            });
+
+            // Pick the winner
+            cleaned.push(group[0]);
+          }
+        });
+
+        return cleaned;
+      };
+
+      const uniqueApps = deduplicateApplications(allApps);
+      // ---------------------------
+
+      setApplications(uniqueApps);
+      calculateStats(uniqueApps);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching applications:', error);
@@ -166,37 +250,7 @@ export default function AdminPage() {
     return path;
   };
 
-  const exportToCSV = async () => {
-    setIsExporting(true);
-    // Simulate a small delay for better UX
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    const headers = ['Reference', 'Full Name', 'Email', 'Phone', 'Position', 'Department', 'Status', 'Date Applied'];
-    const csvContent = [
-      headers.join(','),
-      ...filteredApplicants.map(app => [
-        app.reference_number,
-        `"${app.full_name}"`,
-        app.email,
-        app.phone,
-        `"${app.position}"`,
-        `"${app.department}"`,
-        app.status || 'Pending',
-        new Date(app.created_at).toLocaleDateString()
-      ].join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'applicants_export.csv');
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setIsExporting(false);
-  };
+  // Removed old exportToCSV function in favor of ExportModal
 
   const filteredApplicants = applications.filter(app => {
     const matchesSearch = app.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -252,20 +306,33 @@ export default function AdminPage() {
               <h1 className="text-2xl font-bold text-[#1e3a5f]">
                 {activeTab === 'dashboard' && 'Dashboard Overview'}
                 {activeTab === 'applications' && 'Applications Management'}
-                {activeTab === 'analytics' && 'Analytics & Reports'}
+                {activeTab === 'analytics' && 'Advanced Analytics & Reports'}
                 {activeTab === 'settings' && 'Settings'}
               </h1>
-              <p className="text-gray-500 text-sm mt-1">Manage your recruitment process efficiently</p>
+              <p className="text-gray-500 text-sm mt-1">
+                {activeTab === 'analytics' ? 'Visualize recruitment data and export reports' : 'Manage your recruitment process efficiently'}
+              </p>
             </div>
 
             <div className="flex gap-3">
-              <button
-                onClick={exportToCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
-              >
-                <Download size={18} />
-                <span className="hidden sm:inline">{isExporting ? 'Exporting...' : 'Export CSV'}</span>
-              </button>
+              {activeTab !== 'analytics' && (
+                <>
+                  <button
+                    onClick={() => setIsExportModalOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
+                  >
+                    <Download size={18} />
+                    <span className="hidden sm:inline">Export Data</span>
+                  </button>
+                  <button
+                    onClick={() => setIsBulkExportModalOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-brand-teal text-white border border-brand-teal rounded-lg hover:bg-[#3d8568] transition-colors shadow-sm ml-2"
+                  >
+                    <FolderDown size={18} />
+                    <span className="hidden sm:inline">Bulk Engine</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -286,11 +353,11 @@ export default function AdminPage() {
                 </div>
 
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group">
-                  <div className="absolute right-0 top-0 w-24 h-24 bg-yellow-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
+                  <div className="absolute right-0 top-0 w-24 h-24 bg-blue-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
                   <div className="relative z-10">
-                    <div className="text-yellow-600 text-sm font-medium uppercase tracking-wider">Pending Review</div>
-                    <div className="text-3xl font-bold text-yellow-600 mt-2">{stats.pending}</div>
-                    <div className="mt-2 text-xs text-yellow-600 flex items-center gap-1">
+                    <div className="text-brand-blue text-sm font-medium uppercase tracking-wider">Pending Review</div>
+                    <div className="text-3xl font-bold text-brand-blue mt-2">{stats.pending}</div>
+                    <div className="mt-2 text-xs text-brand-blue flex items-center gap-1">
                       <Clock size={12} />
                       <span>Needs attention</span>
                     </div>
@@ -336,377 +403,441 @@ export default function AdminPage() {
                     View All
                   </button>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50/50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Applicant</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {applications.slice(0, 5).map(app => (
-                        <tr key={app.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-3">
-                            <div className="flex items-center">
-                              <div className="h-8 w-8 rounded-full bg-brand-blue/10 flex items-center justify-center text-brand-blue font-bold text-xs">
-                                {app.full_name.charAt(0)}
-                              </div>
-                              <div className="ml-3">
-                                <div className="text-sm font-medium text-gray-900">{app.full_name}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-3 text-sm text-gray-600">{app.position}</td>
-                          <td className="px-6 py-3">
-                            <span className={`px-2 py-0.5 inline-flex text-xs font-medium rounded-full 
-                              ${app.status === 'Shortlisted' ? 'bg-green-100 text-green-800' :
-                                app.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                                  'bg-yellow-100 text-yellow-800'}`}>
-                              {app.status || 'Pending'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-3 text-right">
-                            <button
-                              onClick={() => setSelectedApp(app)}
-                              className="text-gray-400 hover:text-brand-teal"
-                            >
-                              <Eye size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Applications View */}
-          {activeTab === 'applications' && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-[calc(100vh-12rem)]">
-              {/* Filters Bar */}
-              <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between bg-white rounded-t-xl">
-                <div className="flex items-center gap-2 w-full md:w-auto flex-1">
-                  <div className="relative flex-1 md:max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    <input
-                      type="text"
-                      placeholder="Search applicants..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal/20 focus:border-brand-teal outline-none transition-all"
-                    />
-                  </div>
-
-                  <div className="flex gap-2">
-                    <select
-                      value={filterDept}
-                      onChange={(e) => setFilterDept(e.target.value)}
-                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 focus:border-brand-teal outline-none"
-                    >
-                      {departments.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
-
-                    <select
-                      value={filterStatus}
-                      onChange={(e) => setFilterStatus(e.target.value)}
-                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 focus:border-brand-teal outline-none"
-                    >
-                      <option value="All">All Statuses</option>
-                      <option value="Pending">Pending</option>
-                      <option value="Shortlisted">Shortlisted</option>
-                      <option value="Rejected">Rejected</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Bulk Actions */}
-                {selectedApps.length > 0 && (
-                  <div className="flex items-center gap-2 bg-brand-blue/5 px-3 py-1.5 rounded-lg animate-in fade-in slide-in-from-top-2">
-                    <span className="text-sm font-medium text-brand-blue">{selectedApps.length} selected</span>
-                    <div className="h-4 w-px bg-gray-300 mx-1"></div>
-                    <button
-                      onClick={() => handleBulkStatusUpdate('Shortlisted')}
-                      className="text-xs font-medium text-green-600 hover:bg-green-50 px-2 py-1 rounded transition-colors"
-                    >
-                      Shortlist
-                    </button>
-                    <button
-                      onClick={() => handleBulkStatusUpdate('Rejected')}
-                      className="text-xs font-medium text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Table */}
-              <div className="flex-1 overflow-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                  <thead className="bg-gray-50/50">
                     <tr>
-                      <th className="px-6 py-3 text-left">
-                        <input
-                          type="checkbox"
-                          checked={selectedApps.length === filteredApplicants.length && filteredApplicants.length > 0}
-                          onChange={toggleSelectAll}
-                          className="rounded border-gray-300 text-brand-teal focus:ring-brand-teal"
-                        />
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Applicant</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {filteredApplicants.length > 0 ? (
-                      filteredApplicants.map(app => (
-                        <tr key={app.id} className={`hover:bg-gray-50 transition-colors ${selectedApps.includes(app.id) ? 'bg-blue-50/30' : ''}`}>
-                          <td className="px-6 py-4">
-                            <input
-                              type="checkbox"
-                              checked={selectedApps.includes(app.id)}
-                              onChange={() => toggleSelectApp(app.id)}
-                              className="rounded border-gray-300 text-brand-teal focus:ring-brand-teal"
-                            />
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="h-10 w-10 rounded-full bg-brand-blue/10 flex items-center justify-center text-brand-blue font-bold">
-                                {app.full_name.charAt(0)}
-                              </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">{app.full_name}</div>
-                                <div className="text-sm text-gray-500">{app.email}</div>
-                              </div>
+                    {applications.slice(0, 5).map(app => (
+                      <tr key={app.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-3">
+                          <div className="flex items-center">
+                            <div className="h-8 w-8 rounded-full bg-brand-blue/10 flex items-center justify-center text-brand-blue font-bold text-xs">
+                              {app.full_name.charAt(0)}
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{app.position}</div>
-                            <div className="text-xs text-gray-500">{app.department}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                              ${app.status === 'Shortlisted' ? 'bg-green-100 text-green-800' :
-                                app.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                                  'bg-yellow-100 text-yellow-800'}`}>
-                              {app.status || 'Pending'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(app.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button
-                              onClick={() => setSelectedApp(app)}
-                              className="text-brand-teal hover:text-[#3d8568] font-medium p-2 hover:bg-teal-50 rounded-lg transition-colors"
-                              title="View Details"
-                            >
-                              <Eye size={18} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                          <div className="flex flex-col items-center justify-center">
-                            <Search size={48} className="text-gray-200 mb-4" />
-                            <p className="text-lg font-medium text-gray-900">No applications found</p>
-                            <p className="text-sm text-gray-500">Try adjusting your search or filters</p>
+                            <div className="ml-3">
+                              <div className="text-sm font-medium text-gray-900">{app.full_name}</div>
+                            </div>
                           </div>
                         </td>
+                        <td className="px-6 py-3 text-sm text-gray-600">{app.position}</td>
+                        <td className="px-6 py-3">
+                          <span className={`px-2 py-0.5 inline-flex text-xs font-medium rounded-full 
+                              ${app.status === 'Shortlisted' ? 'bg-green-100 text-green-800' :
+                              app.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                                'bg-blue-100 text-blue-800'}`}>
+                            {app.status || 'Pending'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 text-right">
+                          <button
+                            onClick={() => setSelectedApp(app)}
+                            className="text-gray-400 hover:text-brand-teal"
+                          >
+                            <Eye size={16} />
+                          </button>
+                        </td>
                       </tr>
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
+            </div>
 
-              {/* Pagination (Visual only for now) */}
-              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50 rounded-b-xl">
-                <span className="text-sm text-gray-500">
-                  Showing <span className="font-medium">{filteredApplicants.length}</span> results
-                </span>
-                <div className="flex gap-2">
-                  <button className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50" disabled>Previous</button>
-                  <button className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50" disabled>Next</button>
+          )}
+
+          {/* Applications View */}
+          {
+            activeTab === 'applications' && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col h-[calc(100vh-12rem)]">
+                {/* Filters Bar */}
+                <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between bg-white rounded-t-xl">
+                  <div className="flex items-center gap-2 w-full md:w-auto flex-1">
+                    <div className="relative flex-1 md:max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      <input
+                        type="text"
+                        placeholder="Search applicants..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-teal/20 focus:border-brand-teal outline-none transition-all"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <select
+                        value={filterDept}
+                        onChange={(e) => setFilterDept(e.target.value)}
+                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 focus:border-brand-teal outline-none"
+                      >
+                        {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+
+                      <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 focus:border-brand-teal outline-none"
+                      >
+                        <option value="All">All Statuses</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Shortlisted">Shortlisted</option>
+                        <option value="Rejected">Rejected</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Bulk Actions */}
+                  {selectedApps.length > 0 && (
+                    <div className="flex items-center gap-2 bg-brand-blue/5 px-3 py-1.5 rounded-lg animate-in fade-in slide-in-from-top-2">
+                      <span className="text-sm font-medium text-brand-blue">{selectedApps.length} selected</span>
+                      <div className="h-4 w-px bg-gray-300 mx-1"></div>
+                      <button
+                        onClick={() => handleBulkStatusUpdate('Shortlisted')}
+                        className="text-xs font-medium text-green-600 hover:bg-green-50 px-2 py-1 rounded transition-colors"
+                      >
+                        Shortlist
+                      </button>
+                      <button
+                        onClick={() => handleBulkStatusUpdate('Rejected')}
+                        className="text-xs font-medium text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Table */}
+                <div className="flex-1 overflow-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                      <tr>
+                        <th className="px-6 py-3 text-left">
+                          <input
+                            type="checkbox"
+                            checked={selectedApps.length === filteredApplicants.length && filteredApplicants.length > 0}
+                            onChange={toggleSelectAll}
+                            className="rounded border-gray-300 text-brand-teal focus:ring-brand-teal"
+                          />
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredApplicants.length > 0 ? (
+                        filteredApplicants.map(app => (
+                          <tr key={app.id} className={`hover:bg-gray-50 transition-colors ${selectedApps.includes(app.id) ? 'bg-blue-50/30' : ''}`}>
+                            <td className="px-6 py-4">
+                              <input
+                                type="checkbox"
+                                checked={selectedApps.includes(app.id)}
+                                onChange={() => toggleSelectApp(app.id)}
+                                className="rounded border-gray-300 text-brand-teal focus:ring-brand-teal"
+                              />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="h-10 w-10 rounded-full bg-brand-blue/10 flex items-center justify-center text-brand-blue font-bold">
+                                  {app.full_name.charAt(0)}
+                                </div>
+                                <div className="ml-4">
+                                  <div className="text-sm font-medium text-gray-900">{app.full_name}</div>
+                                  <div className="text-sm text-gray-500">{app.email}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">{app.position}</div>
+                              <div className="text-xs text-gray-500">{app.department}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                              ${app.status === 'Shortlisted' ? 'bg-green-100 text-green-800' :
+                                  app.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                                    'bg-blue-100 text-blue-800'}`}>
+                                {app.status || 'Pending'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(app.created_at).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              <button
+                                onClick={() => setSelectedApp(app)}
+                                className="text-brand-teal hover:text-[#3d8568] font-medium p-2 hover:bg-teal-50 rounded-lg transition-colors"
+                                title="View Details"
+                              >
+                                <Eye size={18} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                            <div className="flex flex-col items-center justify-center">
+                              <Search size={48} className="text-gray-200 mb-4" />
+                              <p className="text-lg font-medium text-gray-900">No applications found</p>
+                              <p className="text-sm text-gray-500">Try adjusting your search or filters</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination (Visual only for now) */}
+                <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50 rounded-b-xl">
+                  <span className="text-sm text-gray-500">
+                    Showing <span className="font-medium">{filteredApplicants.length}</span> results
+                  </span>
+                  <div className="flex gap-2">
+                    <button className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50" disabled>Previous</button>
+                    <button className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50" disabled>Next</button>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
+
+
+          {/* Analytics View */}
+          {
+            activeTab === 'analytics' && (
+              <AdvancedAnalytics applications={applications} />
+            )
+          }
+
+          {/* Smart HR View */}
+          {
+            activeTab === 'hr-screening' && (
+              <SmartHR applications={applications} />
+            )
+          }
+
+          {/* Slip Generator View */}
+          {
+            activeTab === 'slip-generator' && (
+              <SlipGenerator />
+            )
+          }
+
+
+
+          {/* Application Details Modal */}
+          {selectedApp && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex justify-end transition-opacity" onClick={() => setSelectedApp(null)}>
+              <div className="w-full md:w-[600px] h-full bg-white shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-300" onClick={e => e.stopPropagation()}>
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+                  <h2 className="text-xl font-bold text-[#1e3a5f]">Application Details</h2>
+                  <button onClick={() => setSelectedApp(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                    <X size={20} className="text-gray-500" />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-8">
+                  {/* Header Info */}
+                  <div className="flex items-start gap-4">
+                    <div className="w-20 h-20 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0">
+                      {selectedApp.photo_url ? (
+                        <img src={selectedApp.photo_url} alt={selectedApp.full_name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <Users size={32} />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">{selectedApp.full_name}</h3>
+                      <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                        <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">{selectedApp.reference_number}</span>
+                        <span>•</span>
+                        <span>{selectedApp.position}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-3">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${selectedApp.status === 'Shortlisted' ? 'bg-green-50 text-green-700 border-green-200' :
+                          selectedApp.status === 'Rejected' ? 'bg-red-50 text-red-700 border-red-200' :
+                            selectedApp.status === 'Reviewed' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                              'bg-gray-100 text-gray-600 border-gray-200'
+                          }`}>
+                          {selectedApp.status}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          Applied {new Date(selectedApp.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Actions */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => updateStatus(selectedApp.id, 'Shortlisted')}
+                      disabled={selectedApp.status === 'Shortlisted'}
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <CheckCircle size={16} /> Shortlist
+                    </button>
+                    <button
+                      onClick={() => updateStatus(selectedApp.id, 'Rejected')}
+                      disabled={selectedApp.status === 'Rejected'}
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-700 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <XCircle size={16} /> Reject
+                    </button>
+                  </div>
+
+                  {/* Contact Info */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                      <Mail size={16} className="text-gray-400" /> Contact Information
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+                      <div>
+                        <label className="text-xs text-gray-500 block mb-1">Email Address</label>
+                        <a href={`mailto:${selectedApp.email}`} className="text-sm font-medium text-brand-teal hover:underline flex items-center gap-1">
+                          {selectedApp.email}
+                        </a>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 block mb-1">Phone Number</label>
+                        <a href={`tel:${selectedApp.phone}`} className="text-sm font-medium text-gray-900 hover:text-brand-teal">
+                          {selectedApp.phone}
+                        </a>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 block mb-1">State of Origin</label>
+                        <span className="text-sm font-medium text-gray-900">{selectedApp.state_of_origin}</span>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 block mb-1">LGA</label>
+                        <span className="text-sm font-medium text-gray-900">{selectedApp.lga}</span>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 block mb-1">Date of Birth</label>
+                        <span className="text-sm font-medium text-gray-900">
+                          {selectedApp.date_of_birth ? `${new Date(selectedApp.date_of_birth).toLocaleDateString()} (${calculateAge(selectedApp.date_of_birth)} years)` : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Education & License */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                      <GraduationCap size={16} className="text-gray-400" /> Qualifications
+                    </h4>
+                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                      <div className="p-4 grid gap-4">
+                        <div className="grid grid-cols-3 gap-2">
+                          <span className="text-gray-500 text-sm">Qualification:</span>
+                          <span className="col-span-2 font-medium text-gray-900">{selectedApp.qualification}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <span className="text-gray-500 text-sm">Institution:</span>
+                          <span className="col-span-2 font-medium text-gray-900">{selectedApp.institution}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <span className="text-gray-500 text-sm">Graduation:</span>
+                          <span className="col-span-2 font-medium text-gray-900">{selectedApp.year_of_graduation}</span>
+                        </div>
+                        {selectedApp.license_number && (
+                          <div className="grid grid-cols-3 gap-2">
+                            <span className="text-gray-500 text-sm">License:</span>
+                            <span className="col-span-2 font-medium text-gray-900">{selectedApp.license_number}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Documents */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                      <FolderDown size={16} className="text-gray-400" /> Attached Documents
+                    </h4>
+                    <div className="grid gap-2">
+                      <a
+                        href={selectedApp.cv_url || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-brand-teal hover:bg-teal-50/50 transition-all group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-50 text-blue-600 rounded-md group-hover:bg-blue-100 transition-colors">
+                            <FileText size={18} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">Curriculum Vitae</p>
+                            <p className="text-xs text-gray-500">PDF Document</p>
+                          </div>
+                        </div>
+                        <ExternalLink size={16} className="text-gray-400 group-hover:text-brand-teal" />
+                      </a>
+
+                      {selectedApp.other_documents?.map((doc, idx) => (
+                        <a
+                          key={idx}
+                          href={doc.path}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-brand-teal hover:bg-teal-50/50 transition-all group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-purple-50 text-purple-600 rounded-md group-hover:bg-purple-100 transition-colors">
+                              <FileText size={18} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{doc.name}</p>
+                              <p className="text-xs text-gray-500">Attached File</p>
+                            </div>
+                          </div>
+                          <ExternalLink size={16} className="text-gray-400 group-hover:text-brand-teal" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+
+                <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-xl flex justify-end sticky bottom-0">
+                  <button
+                    onClick={() => setSelectedApp(null)}
+                    className="px-6 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors shadow-sm"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
             </div>
           )}
+
+          <ExportModal
+            isOpen={isExportModalOpen}
+            onClose={() => setIsExportModalOpen(false)}
+            filteredApplications={filteredApplicants}
+            allApplications={applications}
+          />
+
+          <BulkExportModal
+            isOpen={isBulkExportModalOpen}
+            onClose={() => setIsBulkExportModalOpen(false)}
+            applications={applications}
+            stats={stats}
+          />
         </div>
       </div>
-
-      {/* Application Details Modal */}
-      {selectedApp && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
-              <div>
-                <h2 className="text-2xl font-bold text-[#1e3a5f]">Application Details</h2>
-                <p className="text-sm text-gray-500">Ref: {selectedApp.reference_number}</p>
-              </div>
-              <button
-                onClick={() => setSelectedApp(null)}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <XCircle size={24} />
-              </button>
-            </div>
-
-            <div className="p-8 overflow-y-auto">
-              {/* Status Actions */}
-              <div className="bg-gray-50 p-6 rounded-xl mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border border-gray-100">
-                <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${selectedApp.status === 'Shortlisted' ? 'bg-green-500' :
-                    selectedApp.status === 'Rejected' ? 'bg-red-500' :
-                      'bg-yellow-500'
-                    }`}></div>
-                  <div>
-                    <span className="text-sm text-gray-500 block">Current Status</span>
-                    <span className="font-semibold text-gray-900">{selectedApp.status || 'Pending'}</span>
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => updateStatus(selectedApp.id, 'Pending')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedApp.status === 'Pending' || !selectedApp.status ? 'bg-gray-200 text-gray-400 cursor-default' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-                    disabled={selectedApp.status === 'Pending' || !selectedApp.status}
-                  >
-                    Mark Pending
-                  </button>
-                  <button
-                    onClick={() => updateStatus(selectedApp.id, 'Rejected')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedApp.status === 'Rejected' ? 'bg-red-100 text-red-400 cursor-default' : 'bg-white border border-red-200 text-red-600 hover:bg-red-50'}`}
-                    disabled={selectedApp.status === 'Rejected'}
-                  >
-                    Reject
-                  </button>
-                  <button
-                    onClick={() => updateStatus(selectedApp.id, 'Shortlisted')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedApp.status === 'Shortlisted' ? 'bg-green-100 text-green-800 cursor-default' : 'bg-brand-teal text-white hover:bg-[#3d8568] shadow-sm'}`}
-                    disabled={selectedApp.status === 'Shortlisted'}
-                  >
-                    {updatingStatusId === selectedApp.id ? 'Updating...' : 'Shortlist Application'}
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-bold text-[#1e3a5f] mb-4 flex items-center gap-2">
-                      <Users size={20} />
-                      Personal Information
-                    </h3>
-                    <div className="bg-white p-4 rounded-lg border border-gray-100 space-y-3 shadow-sm">
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-gray-500 text-sm">Full Name:</span>
-                        <span className="col-span-2 font-medium text-gray-900">{selectedApp.full_name}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-gray-500 text-sm">Email:</span>
-                        <span className="col-span-2 font-medium text-gray-900">{selectedApp.email}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-gray-500 text-sm">Phone:</span>
-                        <span className="col-span-2 font-medium text-gray-900">{selectedApp.phone}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-gray-500 text-sm">State/LGA:</span>
-                        <span className="col-span-2 font-medium text-gray-900">{selectedApp.state_of_origin} / {selectedApp.lga}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-lg font-bold text-[#1e3a5f] mb-4 flex items-center gap-2">
-                      <FileText size={20} />
-                      Documents
-                    </h3>
-                    <div className="bg-blue-50 rounded-lg p-5 border border-blue-100 flex items-center justify-between">
-                      <div>
-                        <h4 className="font-semibold text-[#1e3a5f]">Application PDF</h4>
-                        <p className="text-xs text-gray-600 mt-1">Combined CV, Certificates & License</p>
-                      </div>
-                      <a
-                        href={getFileUrl(selectedApp.cv_url)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-2 bg-white text-brand-blue px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors border border-blue-200 shadow-sm text-sm font-medium"
-                      >
-                        <Download size={16} />
-                        View PDF
-                      </a>
-                      <button
-                        onClick={() => generateSlip({
-                          ...selectedApp,
-                          passport_url: selectedApp.photo_url
-                        })}
-                        className="flex items-center gap-2 bg-brand-teal text-white px-4 py-2 rounded-lg hover:bg-[#3d8568] transition-colors shadow-sm text-sm font-medium"
-                      >
-                        <FileText size={16} />
-                        Slip
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-bold text-[#1e3a5f] mb-4 flex items-center gap-2">
-                    <CheckCircle size={20} />
-                    Qualification & Position
-                  </h3>
-                  <div className="bg-white p-4 rounded-lg border border-gray-100 space-y-3 shadow-sm">
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-gray-500 text-sm">Position:</span>
-                      <span className="col-span-2 font-medium text-gray-900">{selectedApp.position}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-gray-500 text-sm">Department:</span>
-                      <span className="col-span-2 font-medium text-gray-900">{selectedApp.department}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-gray-500 text-sm">Degree:</span>
-                      <span className="col-span-2 font-medium text-gray-900">{selectedApp.qualification}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-gray-500 text-sm">Institution:</span>
-                      <span className="col-span-2 font-medium text-gray-900">{selectedApp.institution}</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <span className="text-gray-500 text-sm">Graduation:</span>
-                      <span className="col-span-2 font-medium text-gray-900">{selectedApp.year_of_graduation}</span>
-                    </div>
-                    {selectedApp.license_number && (
-                      <div className="grid grid-cols-3 gap-2">
-                        <span className="text-gray-500 text-sm">License:</span>
-                        <span className="col-span-2 font-medium text-gray-900">{selectedApp.license_number}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-xl flex justify-end">
-              <button
-                onClick={() => setSelectedApp(null)}
-                className="px-6 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors shadow-sm"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

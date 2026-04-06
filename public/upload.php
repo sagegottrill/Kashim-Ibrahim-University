@@ -53,7 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if (in_array($fileExt, $allowedExts) && in_array($mimeType, $allowedMimeTypes)) {
                     // Generate unique name
-                    $cleanName = preg_replace('/[^a-zA-Z0-9._-]/', '', basename($fileName));
+                    $nameWithoutExt = pathinfo($fileName, PATHINFO_FILENAME);
+                    $cleanName = preg_replace('/[^a-zA-Z0-9._-]/', '', $nameWithoutExt);
                     if (empty($cleanName)) {
                         $cleanName = 'file';
                     }
