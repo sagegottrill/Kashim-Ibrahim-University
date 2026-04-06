@@ -9,32 +9,11 @@ import DashboardPage from '../pages/DashboardPage';
 import AdminPage from '../pages/AdminPage';
 import ContactPage from '../pages/ContactPage';
 
-import RecruitmentClosed from '../pages/RecruitmentClosed';
-
 const AppLayout = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const initialPage = searchParams.get('view') || 'home';
   const [currentPage, setCurrentPage] = useState(initialPage);
-
-  // DEADLINE CONFIGURATION
-  // Set to Jan 11, 2026 00:00:00
-  const DEADLINE = new Date('2026-01-11T00:00:00').getTime();
-  const [isRecruitmentClosed, setIsRecruitmentClosed] = useState(false);
-
-  useEffect(() => {
-    const checkDeadline = () => {
-      const now = new Date().getTime();
-      if (now > DEADLINE) {
-        setIsRecruitmentClosed(true);
-      }
-    };
-
-    checkDeadline();
-    // Optional: Check every minute in case user keeps tab open
-    const interval = setInterval(checkDeadline, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Update currentPage if URL param changes (e.g. after redirect)
   useEffect(() => {
@@ -79,10 +58,6 @@ const AppLayout = () => {
         return <HomePage onNavigate={handleNavigate} />;
     }
   };
-
-  if (isRecruitmentClosed) {
-    return <RecruitmentClosed />;
-  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
